@@ -47,7 +47,14 @@ jobs:
             echo "No change — still on the same patch."
             exit 0
           fi
-          PATCH=$(grep -oP 'const PATCH = "\K[^"]+' src/rift-roster-artifact.jsx)
+          # rift-base-stats.html is the file the artifact is published from, and
+          # build-roster.mjs reads its baked patch to decide whether to rebuild.
+          PATCH=$(grep -oP 'const PATCH = "\K[^"]+' rift-base-stats.html)
+          if [ -z "$PATCH" ]; then
+            echo "Could not read the baked patch from rift-base-stats.html." >&2
+            echo "Has the PATCH declaration moved or changed shape?" >&2
+            exit 1
+          fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A

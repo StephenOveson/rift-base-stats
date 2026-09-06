@@ -1,0 +1,813 @@
+<title>Rift Base Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  /* Committed to a single dark treatment: this is a client-adjacent HUD, and
+     the numbers read as instrument values against a dark ground. Every colour
+     is painted explicitly so the page holds on either host background. */
+  :root {
+    --ground:    #080b11;
+    --plate:     #101823;
+    --raised:    #18222f;
+    --edge:      #253143;
+    --edge-soft: #1a2431;
+
+    --gold:      #c8a04a;
+    --gold-lit:  #ecd9ae;
+    --gold-dim:  rgba(200, 160, 74, 0.16);
+    --teal:      #35b8ae;
+    --caution:   #d9724e;
+
+    --ink:       #e3e9f0;
+    --mute:      #7e8b9c;
+    --faint:     #4d5867;
+
+    --display: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+    --body:    'Rajdhani', ui-sans-serif, system-ui, sans-serif;
+    --num:     'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+    --step: 4px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 28px 20px 72px;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead { display: flex; flex-direction: column; gap: 6px; }
+
+  .eyebrow {
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--teal);
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 30px;
+    line-height: 1.1;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--gold-lit);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--mute);
+    font-size: 15px;
+  }
+
+  .rule {
+    height: 1px;
+    margin-top: 18px;
+    background: linear-gradient(90deg, var(--gold), rgba(200, 160, 74, 0) 62%);
+  }
+
+  /* ---------- control rail ---------- */
+
+  .rail {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--ground);
+    border-bottom: 1px solid var(--edge);
+    padding: 14px 0 13px;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(260px, 1fr) minmax(180px, 320px);
+    align-items: center;
+  }
+
+  @media (max-width: 640px) {
+    .rail { grid-template-columns: 1fr; }
+  }
+
+  .level-control { display: flex; align-items: center; gap: 12px; }
+
+  .rail-label {
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mute);
+    white-space: nowrap;
+  }
+
+  #level {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--gold);
+    height: 22px;
+    cursor: pointer;
+  }
+
+  .level-read {
+    font-family: var(--num);
+    font-weight: 700;
+    font-size: 19px;
+    color: var(--gold-lit);
+    min-width: 2.2ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #search {
+    width: 100%;
+    background: var(--plate);
+    color: var(--ink);
+    border: 1px solid var(--edge-soft);
+    border-left: 2px solid var(--gold-dim);
+    border-radius: 2px;
+    padding: 9px 11px;
+    font: 600 15px var(--body);
+  }
+
+  #search::placeholder { color: var(--faint); }
+  #search:focus-visible,
+  #level:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+  /* ---------- summary ---------- */
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--edge-soft);
+    border: 1px solid var(--edge-soft);
+    margin-top: 20px;
+  }
+
+  .tile { background: var(--plate); padding: 13px 15px; }
+
+  .tile .value {
+    display: block;
+    font-family: var(--num);
+    font-weight: 700;
+    font-size: 21px;
+    color: var(--gold-lit);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tile .key {
+    display: block;
+    margin-top: 1px;
+    font-family: var(--display);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* ---------- caution ---------- */
+
+  .caution {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    margin-top: 16px;
+    padding: 11px 14px;
+    background: rgba(217, 114, 78, 0.07);
+    border-left: 2px solid var(--caution);
+    color: var(--mute);
+    font-size: 14px;
+  }
+
+  .caution strong {
+    color: var(--caution);
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding-top: 3px;
+  }
+
+  /* ---------- table ---------- */
+
+  .table-note {
+    margin: 22px 0 7px;
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* 173 rows in their own scroll pane. `overflow` here makes .scroller the
+     containing block for the sticky header, so the header offset is measured
+     against this pane rather than the viewport — hence top: 0 below. */
+  .scroller {
+    overflow: auto;
+    max-height: min(72vh, 760px);
+    border-bottom: 1px solid var(--edge-soft);
+  }
+
+  table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--ground);
+    box-shadow: inset 0 -1px 0 var(--edge);
+    padding: 0;
+    text-align: right;
+  }
+
+  thead th.col-rank, thead th.col-name { text-align: left; }
+
+  th button {
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 9px 8px;
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mute);
+    text-align: inherit;
+  }
+
+  th button:hover { color: var(--gold-lit); }
+  th button:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+  th[aria-sort] button { color: var(--gold); }
+  th[aria-sort] button::after { content: " \25BC"; font-size: 8px; }
+
+  th .flag { color: var(--caution); }
+
+  tbody td {
+    border-bottom: 1px solid var(--edge-soft);
+    padding: 0;
+  }
+
+  tbody tr.champ { cursor: pointer; }
+  tbody tr.champ:hover td { background: var(--plate); }
+  tbody tr.champ.open td { background: var(--plate); }
+
+  .cell {
+    position: relative;
+    padding: 8px;
+    text-align: right;
+    font-family: var(--num);
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  /* The bar behind each number encodes where that champion sits between the
+     roster's min and max for that stat at the current level. */
+  .cell .track {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--gold);
+    opacity: 0.55;
+  }
+
+  .cell.rank {
+    text-align: left;
+    color: var(--faint);
+    font-size: 11px;
+    width: 44px;
+  }
+
+  .cell.name {
+    text-align: left;
+    font-family: var(--body);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    min-width: 150px;
+  }
+
+  .cell.bst { color: var(--gold-lit); font-weight: 700; }
+
+  /* ---------- expanded detail ---------- */
+
+  .detail td {
+    background: var(--raised);
+    border-left: 2px solid var(--gold);
+    padding: 14px 16px 18px;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 10px 26px;
+  }
+
+  .stat-line {
+    display: grid;
+    grid-template-columns: 96px 62px 1fr 46px;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stat-line .name {
+    font-family: var(--display);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mute);
+  }
+
+  .stat-line .now {
+    font-family: var(--num);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: right;
+    color: var(--ink);
+  }
+
+  .stat-line .meter {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .stat-line .meter span {
+    display: block;
+    height: 100%;
+    background: var(--gold);
+  }
+
+  .stat-line .place {
+    font-family: var(--num);
+    font-size: 11px;
+    color: var(--faint);
+    text-align: right;
+  }
+
+  .growth {
+    margin: 12px 0 0;
+    font-family: var(--num);
+    font-size: 11.5px;
+    color: var(--faint);
+    line-height: 1.7;
+  }
+
+  .growth b { color: var(--mute); font-weight: 500; }
+
+  .empty {
+    padding: 34px 8px;
+    color: var(--faint);
+    font-family: var(--display);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    margin-top: 30px;
+    padding-top: 18px;
+    border-top: 1px solid var(--edge-soft);
+    color: var(--faint);
+    font-size: 14px;
+    line-height: 1.75;
+    max-width: 68ch;
+  }
+
+  footer h2 {
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin: 0 0 5px;
+  }
+
+  footer p { margin: 0 0 14px; }
+  footer code { font-family: var(--num); font-size: 12.5px; color: var(--mute); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Summoner&#39;s Rift &middot; Data Dragon</p>
+    <h1>Rift Base Stats</h1>
+    <p class="standfirst">
+      Every champion&#39;s base statistics, scaled to any level with Riot&#39;s own growth
+      curve. Sort by a column to rank the roster on it; open a row for the per-stat
+      breakdown.
+    </p>
+  </header>
+  <div class="rule"></div>
+
+  <div class="rail">
+    <div class="level-control">
+      <span class="rail-label" id="level-label">Level</span>
+      <input type="range" id="level" min="1" max="18" step="1" value="18" aria-labelledby="level-label">
+      <span class="level-read" id="level-read">18</span>
+    </div>
+    <input type="search" id="search" placeholder="Find a champion" aria-label="Find a champion">
+  </div>
+
+  <div class="summary">
+    <div class="tile"><span class="value" id="t-count">&mdash;</span><span class="key">Champions</span></div>
+    <div class="tile"><span class="value" id="t-patch">&mdash;</span><span class="key">Patch</span></div>
+    <div class="tile"><span class="value" id="t-leader">&mdash;</span><span class="key" id="t-leader-key">Top by total</span></div>
+    <div class="tile"><span class="value" id="t-shown">&mdash;</span><span class="key">Rows shown</span></div>
+  </div>
+
+  <div class="caution" id="ad-caution" hidden>
+    <strong>Riot data</strong>
+    <span>
+      Data Dragon reports <code>attackdamageperlevel</code> as <b>0</b> for all
+      <span id="ad-zero-count"></span> champions on this patch. That is an upstream fault in
+      Riot&#39;s export, not a balance change &mdash; AD below is base AD at every level, and the
+      column is flagged until the export is fixed.
+    </span>
+  </div>
+
+  <p class="table-note" id="table-note">&mdash;</p>
+
+  <div class="scroller">
+    <table id="grid">
+      <thead>
+        <tr id="head-row"></tr>
+      </thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    <h2>How the numbers are derived</h2>
+    <p>
+      A stat at level <i>L</i> is <code>base + growth &times; (L&minus;1) &times; (0.7025 + 0.0175 &times; (L&minus;1))</code>
+      &mdash; Riot&#39;s per-level curve, which is why level 18 is worth about 17.85 flat
+      growth steps rather than 17. Attack speed is the exception: its growth is a
+      percentage applied to the base, so it compounds as <code>base &times; (1 + growth% &times; curve)</code>.
+    </p>
+    <p>
+      <b>BST</b> is a base stat total: each of the seven stats is min&ndash;max scaled from 0 to
+      100 across the whole roster <i>at the current level</i>, then averaged. It is a shape
+      comparison, not a power ranking &mdash; it weights move speed as heavily as health, and
+      knows nothing about abilities. Move the level slider and it recomputes, so a champion
+      with a fat base and thin growth visibly slides down the board as you climb.
+    </p>
+    <p>
+      Values are baked in at build time rather than fetched: the artifact sandbox blocks
+      outbound requests, so a live Data Dragon call fails here. Patch <b id="f-patch"></b>.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Row order: name, hp, hp+, hp5, hp5+, ad, ad+, as, as+%, ar, ar+, mr, mr+, ms */
+  /* Keep the PATCH declaration below on one line in this exact shape:
+     build-roster.mjs greps it to decide whether the live patch has moved past
+     the baked one, and the workflow greps it again for the commit message. */
+  const D = __DATA__;
+  const PATCH = "__PATCH__";
+
+  var curve = function (l) { return (l - 1) * (0.7025 + 0.0175 * (l - 1)); };
+
+  var STATS = [
+    { k: "hp",  label: "Health",        short: "HP",  dp: 0, base: 1,  growth: 2,  pct: false, f: function (c, m) { return c[1] + c[2] * m; } },
+    { k: "hp5", label: "Health regen",  short: "HP5", dp: 2, base: 3,  growth: 4,  pct: false, f: function (c, m) { return c[3] + c[4] * m; } },
+    { k: "ad",  label: "Attack damage", short: "AD",  dp: 1, base: 5,  growth: 6,  pct: false, f: function (c, m) { return c[5] + c[6] * m; } },
+    { k: "as",  label: "Attack speed",  short: "AS",  dp: 3, base: 7,  growth: 8,  pct: true,  f: function (c, m) { return c[7] * (1 + (c[8] / 100) * m); } },
+    { k: "ar",  label: "Armor",         short: "AR",  dp: 1, base: 9,  growth: 10, pct: false, f: function (c, m) { return c[9] + c[10] * m; } },
+    { k: "mr",  label: "Magic resist",  short: "MR",  dp: 1, base: 11, growth: 12, pct: false, f: function (c, m) { return c[11] + c[12] * m; } },
+    { k: "ms",  label: "Move speed",    short: "MS",  dp: 0, base: 13, growth: -1, pct: false, f: function (c) { return c[13]; } }
+  ];
+
+  var byKey = {};
+  STATS.forEach(function (s) { byKey[s.k] = s; });
+
+  var level = 18;
+  var sortKey = "bst";
+  var query = "";
+  var openName = null;
+  var scored = [];
+
+  var adZero = D.filter(function (c) { return !c[6]; }).length;
+
+  var el = {
+    level:     document.getElementById("level"),
+    levelRead: document.getElementById("level-read"),
+    search:    document.getElementById("search"),
+    headRow:   document.getElementById("head-row"),
+    body:      document.getElementById("body"),
+    note:      document.getElementById("table-note"),
+    count:     document.getElementById("t-count"),
+    patch:     document.getElementById("t-patch"),
+    leader:    document.getElementById("t-leader"),
+    leaderKey: document.getElementById("t-leader-key"),
+    shown:     document.getElementById("t-shown")
+  };
+
+  function fmt(v, dp) { return v.toFixed(dp); }
+
+  /* Recompute every value, its roster-relative position and its rank for the
+     current level. Ranks are per-stat, so a row can be 3rd in armor and 140th
+     in move speed. */
+  function rescore() {
+    var m = curve(level);
+
+    scored = D.map(function (c) {
+      var v = {};
+      STATS.forEach(function (s) { v[s.k] = s.f(c, m); });
+      return { name: c[0], raw: c, v: v, norm: {}, rank: {}, bst: 0 };
+    });
+
+    STATS.forEach(function (s) {
+      var vals = scored.map(function (r) { return r.v[s.k]; });
+      var lo = Math.min.apply(null, vals);
+      var hi = Math.max.apply(null, vals);
+      var span = hi - lo;
+
+      var order = scored.slice().sort(function (a, b) { return b.v[s.k] - a.v[s.k]; });
+      order.forEach(function (r, i) { r.rank[s.k] = i + 1; });
+
+      scored.forEach(function (r) {
+        r.norm[s.k] = span === 0 ? 50 : ((r.v[s.k] - lo) / span) * 100;
+      });
+    });
+
+    scored.forEach(function (r) {
+      var sum = 0;
+      STATS.forEach(function (s) { sum += r.norm[s.k]; });
+      r.bst = sum / STATS.length;
+    });
+  }
+
+  function visible() {
+    var t = query.trim().toLowerCase();
+    return scored
+      .filter(function (r) { return !t || r.name.toLowerCase().indexOf(t) !== -1; })
+      .sort(function (a, b) {
+        if (sortKey === "bst") return b.bst - a.bst;
+        var d = b.v[sortKey] - a.v[sortKey];
+        return d !== 0 ? d : a.name.localeCompare(b.name);
+      });
+  }
+
+  function buildHead() {
+    el.headRow.innerHTML = "";
+
+    var cols = [{ k: "rank", short: "#", sortable: false },
+                { k: "name", short: "Champion", sortable: false }]
+      .concat(STATS.map(function (s) { return { k: s.k, short: s.short, sortable: true }; }))
+      .concat([{ k: "bst", short: "BST", sortable: true }]);
+
+    cols.forEach(function (col) {
+      var th = document.createElement("th");
+      th.className = "col-" + col.k;
+
+      if (!col.sortable) {
+        var span = document.createElement("span");
+        span.className = "rail-label";
+        span.style.display = "block";
+        span.style.padding = "9px 8px";
+        span.textContent = col.short;
+        th.appendChild(span);
+        el.headRow.appendChild(th);
+        return;
+      }
+
+      if (sortKey === col.k) th.setAttribute("aria-sort", "descending");
+
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = col.short;
+
+      if (col.k === "ad" && adZero === D.length) {
+        var flag = document.createElement("span");
+        flag.className = "flag";
+        flag.textContent = " •";
+        flag.title = "Riot reports 0 growth for every champion on this patch";
+        b.appendChild(flag);
+      }
+
+      var label = col.k === "bst" ? "base stat total" : byKey[col.k].label;
+      b.setAttribute("aria-label", "Sort by " + label + ", highest first");
+      b.addEventListener("click", function () {
+        sortKey = col.k;
+        openName = null;
+        buildHead();
+        render();
+      });
+
+      th.appendChild(b);
+      el.headRow.appendChild(th);
+    });
+  }
+
+  function statLine(r, s) {
+    var line = document.createElement("div");
+    line.className = "stat-line";
+
+    var name = document.createElement("span");
+    name.className = "name";
+    name.textContent = s.label;
+
+    var now = document.createElement("span");
+    now.className = "now";
+    now.textContent = fmt(r.v[s.k], s.dp);
+
+    var meter = document.createElement("span");
+    meter.className = "meter";
+    var fill = document.createElement("span");
+    fill.style.width = Math.max(1, r.norm[s.k]) + "%";
+    meter.appendChild(fill);
+
+    var place = document.createElement("span");
+    place.className = "place";
+    place.textContent = "#" + r.rank[s.k];
+
+    line.appendChild(name);
+    line.appendChild(now);
+    line.appendChild(meter);
+    line.appendChild(place);
+    return line;
+  }
+
+  function detailRow(r, colspan) {
+    var tr = document.createElement("tr");
+    tr.className = "detail";
+    var td = document.createElement("td");
+    td.colSpan = colspan;
+
+    var grid = document.createElement("div");
+    grid.className = "detail-grid";
+    STATS.forEach(function (s) { grid.appendChild(statLine(r, s)); });
+    td.appendChild(grid);
+
+    var growth = document.createElement("p");
+    growth.className = "growth";
+    var parts = STATS.filter(function (s) { return s.growth >= 0; }).map(function (s) {
+      var g = r.raw[s.growth];
+      return s.short + " " + fmt(r.raw[s.base], s.dp) + " + " + g + (s.pct ? "%" : "") + "/lvl";
+    });
+    growth.innerHTML = "<b>Base + growth</b> &nbsp; " + parts.join("&nbsp; &middot; &nbsp;") +
+      "&nbsp; &middot; &nbsp; MS " + r.raw[13] + " (flat)";
+    td.appendChild(growth);
+
+    tr.appendChild(td);
+    return tr;
+  }
+
+  function render() {
+    var rows = visible();
+    var colspan = STATS.length + 3;
+
+    el.body.innerHTML = "";
+
+    if (rows.length === 0) {
+      var tr = document.createElement("tr");
+      var td = document.createElement("td");
+      td.colSpan = colspan;
+      td.className = "empty";
+      td.textContent = "No champion matches “" + query.trim() + "”";
+      tr.appendChild(td);
+      el.body.appendChild(tr);
+    }
+
+    rows.forEach(function (r, i) {
+      var tr = document.createElement("tr");
+      tr.className = "champ" + (openName === r.name ? " open" : "");
+      tr.tabIndex = 0;
+      tr.setAttribute("role", "button");
+      tr.setAttribute("aria-expanded", openName === r.name ? "true" : "false");
+      tr.setAttribute("aria-label", r.name + ", detailed stats");
+
+      var rank = document.createElement("td");
+      var rankCell = document.createElement("div");
+      rankCell.className = "cell rank";
+      rankCell.textContent = String(i + 1).padStart(2, "0");
+      rank.appendChild(rankCell);
+      tr.appendChild(rank);
+
+      var name = document.createElement("td");
+      var nameCell = document.createElement("div");
+      nameCell.className = "cell name";
+      nameCell.textContent = r.name;
+      name.appendChild(nameCell);
+      tr.appendChild(name);
+
+      STATS.forEach(function (s) {
+        var td = document.createElement("td");
+        var cell = document.createElement("div");
+        cell.className = "cell";
+        cell.textContent = fmt(r.v[s.k], s.dp);
+
+        var track = document.createElement("span");
+        track.className = "track";
+        track.style.width = Math.max(1, r.norm[s.k]) + "%";
+        cell.appendChild(track);
+
+        td.appendChild(cell);
+        tr.appendChild(td);
+      });
+
+      var bst = document.createElement("td");
+      var bstCell = document.createElement("div");
+      bstCell.className = "cell bst";
+      bstCell.textContent = r.bst.toFixed(1);
+      var bstTrack = document.createElement("span");
+      bstTrack.className = "track";
+      bstTrack.style.width = Math.max(1, r.bst) + "%";
+      bstCell.appendChild(bstTrack);
+      bst.appendChild(bstCell);
+      tr.appendChild(bst);
+
+      function toggle() {
+        openName = openName === r.name ? null : r.name;
+        render();
+      }
+      tr.addEventListener("click", toggle);
+      tr.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+
+      el.body.appendChild(tr);
+      if (openName === r.name) el.body.appendChild(detailRow(r, colspan));
+    });
+
+    var what = sortKey === "bst" ? "base stat total" : byKey[sortKey].label;
+    el.note.textContent = rows.length + " shown — ranked by " + what + " at level " + level;
+    el.shown.textContent = rows.length + " / " + D.length;
+    el.leaderKey.textContent = "Top by " + (sortKey === "bst" ? "total" : byKey[sortKey].short);
+    el.leader.textContent = rows.length ? rows[0].name : "—";
+  }
+
+  el.level.addEventListener("input", function () {
+    level = +el.level.value;
+    el.levelRead.textContent = level;
+    rescore();
+    render();
+  });
+
+  el.search.addEventListener("input", function () {
+    query = el.search.value;
+    openName = null;
+    render();
+  });
+
+  el.count.textContent = D.length;
+  el.patch.textContent = PATCH;
+  document.getElementById("f-patch").textContent = PATCH;
+
+  if (adZero === D.length && D.length > 0) {
+    document.getElementById("ad-zero-count").textContent = D.length;
+    document.getElementById("ad-caution").hidden = false;
+  }
+
+  buildHead();
+  rescore();
+  render();
+})();
+</script>
