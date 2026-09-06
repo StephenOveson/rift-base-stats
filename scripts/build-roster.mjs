@@ -15,9 +15,20 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const TEMPLATE = resolve(HERE, "artifact.template.jsx");
-const OUTPUT = resolve(HERE, "rift-roster-artifact.jsx");
+const ROOT = resolve(HERE, "..");
 const DDRAGON = "https://ddragon.leagueoflegends.com";
+
+/* Two renderings of the same data. The .html one is what gets published as the
+   Rift Base Stats artifact; the .jsx one predates it and is kept in step. Both
+   templates take the same __DATA__ / __PATCH__ placeholders. Templates live at
+   the repo root, so they resolve against ROOT rather than this scripts/ dir. */
+const TARGETS = [
+  { template: resolve(ROOT, "artifact.template.html"), output: resolve(ROOT, "rift-base-stats.html") },
+  { template: resolve(ROOT, "artifact.template.jsx"), output: resolve(HERE, "rift-roster-artifact.jsx") },
+];
+
+/** The patch baked into the artifact is read from the html build. */
+const OUTPUT = TARGETS[0].output;
 
 /** Column order must match the STATS accessors in the template. */
 const toRow = (c) => [
@@ -95,12 +106,13 @@ const main = async () => {
     process.exit(1);
   }
 
-  const template = await readFile(TEMPLATE, "utf8");
-  const out = template
-    .replace("__DATA__", JSON.stringify(rows))
-    .replace("__PATCH__", latest);
-
-  await writeFile(OUTPUT, out);
+  const serialized = JSON.stringify(rows);
+  for (const { template, output } of TARGETS) {
+    const out = (await readFile(template, "utf8"))
+      .replace("__DATA__", serialized)
+      .replace("__PATCH__", latest);
+    await writeFile(output, out);
+  }
   console.log(`Wrote ${rows.length} champions at patch ${latest}.`);
 };
 

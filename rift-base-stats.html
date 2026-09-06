@@ -1,0 +1,813 @@
+<title>Rift Base Stats</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+  /* Committed to a single dark treatment: this is a client-adjacent HUD, and
+     the numbers read as instrument values against a dark ground. Every colour
+     is painted explicitly so the page holds on either host background. */
+  :root {
+    --ground:    #080b11;
+    --plate:     #101823;
+    --raised:    #18222f;
+    --edge:      #253143;
+    --edge-soft: #1a2431;
+
+    --gold:      #c8a04a;
+    --gold-lit:  #ecd9ae;
+    --gold-dim:  rgba(200, 160, 74, 0.16);
+    --teal:      #35b8ae;
+    --caution:   #d9724e;
+
+    --ink:       #e3e9f0;
+    --mute:      #7e8b9c;
+    --faint:     #4d5867;
+
+    --display: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+    --body:    'Rajdhani', ui-sans-serif, system-ui, sans-serif;
+    --num:     'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+    --step: 4px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: 28px 20px 72px;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead { display: flex; flex-direction: column; gap: 6px; }
+
+  .eyebrow {
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--teal);
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 30px;
+    line-height: 1.1;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--gold-lit);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--mute);
+    font-size: 15px;
+  }
+
+  .rule {
+    height: 1px;
+    margin-top: 18px;
+    background: linear-gradient(90deg, var(--gold), rgba(200, 160, 74, 0) 62%);
+  }
+
+  /* ---------- control rail ---------- */
+
+  .rail {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--ground);
+    border-bottom: 1px solid var(--edge);
+    padding: 14px 0 13px;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(260px, 1fr) minmax(180px, 320px);
+    align-items: center;
+  }
+
+  @media (max-width: 640px) {
+    .rail { grid-template-columns: 1fr; }
+  }
+
+  .level-control { display: flex; align-items: center; gap: 12px; }
+
+  .rail-label {
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mute);
+    white-space: nowrap;
+  }
+
+  #level {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--gold);
+    height: 22px;
+    cursor: pointer;
+  }
+
+  .level-read {
+    font-family: var(--num);
+    font-weight: 700;
+    font-size: 19px;
+    color: var(--gold-lit);
+    min-width: 2.2ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #search {
+    width: 100%;
+    background: var(--plate);
+    color: var(--ink);
+    border: 1px solid var(--edge-soft);
+    border-left: 2px solid var(--gold-dim);
+    border-radius: 2px;
+    padding: 9px 11px;
+    font: 600 15px var(--body);
+  }
+
+  #search::placeholder { color: var(--faint); }
+  #search:focus-visible,
+  #level:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+  /* ---------- summary ---------- */
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--edge-soft);
+    border: 1px solid var(--edge-soft);
+    margin-top: 20px;
+  }
+
+  .tile { background: var(--plate); padding: 13px 15px; }
+
+  .tile .value {
+    display: block;
+    font-family: var(--num);
+    font-weight: 700;
+    font-size: 21px;
+    color: var(--gold-lit);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tile .key {
+    display: block;
+    margin-top: 1px;
+    font-family: var(--display);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* ---------- caution ---------- */
+
+  .caution {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    margin-top: 16px;
+    padding: 11px 14px;
+    background: rgba(217, 114, 78, 0.07);
+    border-left: 2px solid var(--caution);
+    color: var(--mute);
+    font-size: 14px;
+  }
+
+  .caution strong {
+    color: var(--caution);
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding-top: 3px;
+  }
+
+  /* ---------- table ---------- */
+
+  .table-note {
+    margin: 22px 0 7px;
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* 173 rows in their own scroll pane. `overflow` here makes .scroller the
+     containing block for the sticky header, so the header offset is measured
+     against this pane rather than the viewport — hence top: 0 below. */
+  .scroller {
+    overflow: auto;
+    max-height: min(72vh, 760px);
+    border-bottom: 1px solid var(--edge-soft);
+  }
+
+  table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--ground);
+    box-shadow: inset 0 -1px 0 var(--edge);
+    padding: 0;
+    text-align: right;
+  }
+
+  thead th.col-rank, thead th.col-name { text-align: left; }
+
+  th button {
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 9px 8px;
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mute);
+    text-align: inherit;
+  }
+
+  th button:hover { color: var(--gold-lit); }
+  th button:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+  th[aria-sort] button { color: var(--gold); }
+  th[aria-sort] button::after { content: " \25BC"; font-size: 8px; }
+
+  th .flag { color: var(--caution); }
+
+  tbody td {
+    border-bottom: 1px solid var(--edge-soft);
+    padding: 0;
+  }
+
+  tbody tr.champ { cursor: pointer; }
+  tbody tr.champ:hover td { background: var(--plate); }
+  tbody tr.champ.open td { background: var(--plate); }
+
+  .cell {
+    position: relative;
+    padding: 8px;
+    text-align: right;
+    font-family: var(--num);
+    font-size: 13px;
+    color: var(--ink);
+  }
+
+  /* The bar behind each number encodes where that champion sits between the
+     roster's min and max for that stat at the current level. */
+  .cell .track {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--gold);
+    opacity: 0.55;
+  }
+
+  .cell.rank {
+    text-align: left;
+    color: var(--faint);
+    font-size: 11px;
+    width: 44px;
+  }
+
+  .cell.name {
+    text-align: left;
+    font-family: var(--body);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    min-width: 150px;
+  }
+
+  .cell.bst { color: var(--gold-lit); font-weight: 700; }
+
+  /* ---------- expanded detail ---------- */
+
+  .detail td {
+    background: var(--raised);
+    border-left: 2px solid var(--gold);
+    padding: 14px 16px 18px;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 10px 26px;
+  }
+
+  .stat-line {
+    display: grid;
+    grid-template-columns: 96px 62px 1fr 46px;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stat-line .name {
+    font-family: var(--display);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mute);
+  }
+
+  .stat-line .now {
+    font-family: var(--num);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: right;
+    color: var(--ink);
+  }
+
+  .stat-line .meter {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .stat-line .meter span {
+    display: block;
+    height: 100%;
+    background: var(--gold);
+  }
+
+  .stat-line .place {
+    font-family: var(--num);
+    font-size: 11px;
+    color: var(--faint);
+    text-align: right;
+  }
+
+  .growth {
+    margin: 12px 0 0;
+    font-family: var(--num);
+    font-size: 11.5px;
+    color: var(--faint);
+    line-height: 1.7;
+  }
+
+  .growth b { color: var(--mute); font-weight: 500; }
+
+  .empty {
+    padding: 34px 8px;
+    color: var(--faint);
+    font-family: var(--display);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* ---------- footer ---------- */
+
+  footer {
+    margin-top: 30px;
+    padding-top: 18px;
+    border-top: 1px solid var(--edge-soft);
+    color: var(--faint);
+    font-size: 14px;
+    line-height: 1.75;
+    max-width: 68ch;
+  }
+
+  footer h2 {
+    font-family: var(--display);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin: 0 0 5px;
+  }
+
+  footer p { margin: 0 0 14px; }
+  footer code { font-family: var(--num); font-size: 12.5px; color: var(--mute); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Summoner&#39;s Rift &middot; Data Dragon</p>
+    <h1>Rift Base Stats</h1>
+    <p class="standfirst">
+      Every champion&#39;s base statistics, scaled to any level with Riot&#39;s own growth
+      curve. Sort by a column to rank the roster on it; open a row for the per-stat
+      breakdown.
+    </p>
+  </header>
+  <div class="rule"></div>
+
+  <div class="rail">
+    <div class="level-control">
+      <span class="rail-label" id="level-label">Level</span>
+      <input type="range" id="level" min="1" max="18" step="1" value="18" aria-labelledby="level-label">
+      <span class="level-read" id="level-read">18</span>
+    </div>
+    <input type="search" id="search" placeholder="Find a champion" aria-label="Find a champion">
+  </div>
+
+  <div class="summary">
+    <div class="tile"><span class="value" id="t-count">&mdash;</span><span class="key">Champions</span></div>
+    <div class="tile"><span class="value" id="t-patch">&mdash;</span><span class="key">Patch</span></div>
+    <div class="tile"><span class="value" id="t-leader">&mdash;</span><span class="key" id="t-leader-key">Top by total</span></div>
+    <div class="tile"><span class="value" id="t-shown">&mdash;</span><span class="key">Rows shown</span></div>
+  </div>
+
+  <div class="caution" id="ad-caution" hidden>
+    <strong>Riot data</strong>
+    <span>
+      Data Dragon reports <code>attackdamageperlevel</code> as <b>0</b> for all
+      <span id="ad-zero-count"></span> champions on this patch. That is an upstream fault in
+      Riot&#39;s export, not a balance change &mdash; AD below is base AD at every level, and the
+      column is flagged until the export is fixed.
+    </span>
+  </div>
+
+  <p class="table-note" id="table-note">&mdash;</p>
+
+  <div class="scroller">
+    <table id="grid">
+      <thead>
+        <tr id="head-row"></tr>
+      </thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    <h2>How the numbers are derived</h2>
+    <p>
+      A stat at level <i>L</i> is <code>base + growth &times; (L&minus;1) &times; (0.7025 + 0.0175 &times; (L&minus;1))</code>
+      &mdash; Riot&#39;s per-level curve, which is why level 18 is worth about 17.85 flat
+      growth steps rather than 17. Attack speed is the exception: its growth is a
+      percentage applied to the base, so it compounds as <code>base &times; (1 + growth% &times; curve)</code>.
+    </p>
+    <p>
+      <b>BST</b> is a base stat total: each of the seven stats is min&ndash;max scaled from 0 to
+      100 across the whole roster <i>at the current level</i>, then averaged. It is a shape
+      comparison, not a power ranking &mdash; it weights move speed as heavily as health, and
+      knows nothing about abilities. Move the level slider and it recomputes, so a champion
+      with a fat base and thin growth visibly slides down the board as you climb.
+    </p>
+    <p>
+      Values are baked in at build time rather than fetched: the artifact sandbox blocks
+      outbound requests, so a live Data Dragon call fails here. Patch <b id="f-patch"></b>.
+    </p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Row order: name, hp, hp+, hp5, hp5+, ad, ad+, as, as+%, ar, ar+, mr, mr+, ms */
+  /* Keep the PATCH declaration below on one line in this exact shape:
+     build-roster.mjs greps it to decide whether the live patch has moved past
+     the baked one, and the workflow greps it again for the commit message. */
+  const D = [["Aatrox",650,114,3,0.5,60,0,0.651,2.5,38,4.8,32,2.05,345],["Ahri",590,104,2.5,0.6,53,0,0.668,2.2,21,4.2,30,1.3,330],["Akali",600,119,9,0.9,62,0,0.625,3.2,23,4.7,37,2.05,345],["Akshan",610,107,3.75,0.65,52,0,0.638,4,26,4.7,33,1.1,330],["Alistar",685,120,8.5,0.85,62,0,0.625,2.125,40,4.7,32,2.05,335],["Ambessa",630,110,8.5,0.75,63,0,0.625,2.5,35,4.9,32,2.05,335],["Amumu",685,94,9,0.85,57,0,0.736,2.18,33,4,32,2.05,335],["Anivia",550,92,5.5,0.55,51,0,0.658,1.68,19,4.1,30,1.3,325],["Annie",560,96,5.5,0.55,50,0,0.61,1.36,23,4,30,1.3,335],["Aphelios",600,102,3.25,0.55,55,0,0.665,2.1,26,4.2,33,1.1,325],["Ashe",610,101,3.5,0.55,59,0,0.658,3,26,4.6,33,1.1,325],["Aurelion Sol",600,90,5.5,0.55,58,0,0.625,1.5,22,4,30,1.3,340],["Aurora",607,110,6,0.55,53,0,0.668,2,23,4.5,32,1.3,335],["Azir",575,108,7,0.75,56,0,0.625,5,25,5,30,1.3,330],["Bard",630,103,5.5,0.55,52,0,0.658,2,34,5,30,1.3,335],["Bel'Veth",580,105,6,0.6,55,0,0.67,0,28,5,32,2.05,340],["Blitzcrank",600,109,7.5,0.75,62,0,0.625,1.13,37,4.7,32,2.05,325],["Brand",570,105,5.5,0.55,57,0,0.681,2,24,4.2,30,1.3,340],["Braum",610,112,8.5,1,55,0,0.644,3.5,35,5,32,2.05,335],["Briar",625,95,0,0,60,0,0.644,2,30,4.5,32,2.05,340],["Caitlyn",580,107,3.5,0.55,62,0,0.681,4,27,4.7,33,1.1,325],["Camille",650,99,8.5,0.8,68,0,0.644,2.5,35,4.5,32,2.05,340],["Cassiopeia",630,98,5.5,0.5,53,0,0.647,1.5,18,4.7,32,1.3,335],["Cho'Gath",644,94,9,0.85,69,0,0.658,1.44,38,4.5,32,2.05,345],["Corki",610,100,5.5,0.55,52,0,0.644,2.8,27,4.5,33,1.1,325],["Darius",652,114,10,0.95,64,0,0.625,1,37,5.2,32,2.05,340],["Diana",640,109,6.5,0.85,57,0,0.625,2,31,4.3,32,2.05,345],["Dr. Mundo",640,103,7,0.5,61,0,0.67,3.3,32,4.5,29,2.3,345],["Draven",675,104,3.75,0.7,62,0,0.679,2.7,29,4.5,33,1.1,330],["Ekko",655,99,9,0.9,58,0,0.688,3.3,32,4.2,32,2.05,340],["Elise",620,109,5.5,0.6,55,0,0.625,1.75,30,4.5,30,1.3,330],["Evelynn",642,98,8.5,0.75,61,0,0.667,2.1,37,4.7,32,2.05,335],["Ezreal",600,102,4,0.65,60,0,0.625,2.5,24,4.2,33,1.1,325],["Fiddlesticks",650,106,5.5,0.6,55,0,0.625,2.11,34,4.7,30,1.3,335],["Fiora",620,99,8.5,0.55,66,0,0.69,3.2,33,4.7,32,2.05,345],["Fizz",640,106,8,0.7,58,0,0.658,3.1,26,4.6,32,2.05,335],["Galio",600,126,8,0.8,59,0,0.625,1.5,24,4.7,32,2.05,340],["Gangplank",630,114,6,0.6,64,0,0.658,3.2,31,4.7,32,2.05,345],["Garen",690,98,8,0.5,69,0,0.625,3.65,38,4.2,32,1.55,340],["Gnar",540,79,4.5,1.25,60,0,0.625,6,32,3.7,30,1.3,335],["Gragas",640,115,5.5,0.5,64,0,0.675,2.05,38,5,32,2.05,330],["Graves",625,106,8,0.7,66,0,0.475,3,33,4.6,33,1.1,340],["Gwen",620,115,9,0.9,63,0,0.69,2.25,39,4.9,32,2.05,340],["Hecarim",625,106,7,0.75,66,0,0.67,2.5,32,5.45,32,2.05,345],["Heimerdinger",558,105,7,0.55,56,0,0.658,1.36,19,4.2,30,1.3,340],["Hwei",580,109,5.5,0.55,54,0,0.69,2.5,21,4.7,30,1.3,330],["Illaoi",656,115,9.5,0.8,65,0,0.625,2.5,35,5,32,2.05,350],["Irelia",630,115,3.5,0.85,65,0,0.656,2.5,36,4.7,30,2.05,335],["Ivern",630,99,7,0.85,50,0,0.644,3.4,27,4.7,30,1.3,330],["Janna",570,90,5.5,0.55,47,0,0.625,3,28,4.5,30,1.3,325],["Jarvan IV",640,104,8,0.7,64,0,0.658,2.5,36,4.6,32,2.05,340],["Jax",650,103,8.5,0.55,68,0,0.638,3.4,36,4.2,32,2.05,350],["Jayce",590,109,6,0.6,59,0,0.658,3,22,5,30,1.3,335],["Jhin",655,107,3.75,0.55,61,0,0.625,0,24,4.7,33,1.1,330],["Jinx",630,105,3.75,0.5,59,0,0.625,1,26,4.2,33,1.1,325],["K'Sante",625,120,9.5,1,64,0,0.688,2.5,36,5.2,30,2.1,330],["Kai'Sa",640,102,4,0.55,59,0,0.644,1.8,25,4.2,33,1.1,335],["Kalista",560,114,4,0.75,57,0,0.694,4.5,24,5.2,33,1.1,330],["Karma",630,109,5.5,0.55,49,0,0.625,2.3,28,5,30,1.3,335],["Karthus",620,110,6.5,0.55,46,0,0.625,2.11,21,4.7,30,1.3,335],["Kassadin",646,113,6,0.5,59,0,0.64,3.7,21,4,30,1.3,335],["Katarina",672,108,7.5,0.7,58,0,0.658,2.74,32,4.7,32,2.05,335],["Kayle",670,92,5,0.5,50,0,0.625,1.5,26,4.2,22,1.3,335],["Kayn",655,103,8,0.75,68,0,0.669,2.7,38,4.5,32,2.05,340],["Kennen",580,98,5.5,0.65,48,0,0.625,3.4,29,4.95,30,1.3,335],["Kha'Zix",643,99,7.5,0.75,60,0,0.668,2.7,32,4.2,32,2.05,345],["Kindred",595,104,7,0.55,65,0,0.625,3.5,29,4.7,33,1.1,325],["Kled",410,84,6,0.75,65,0,0.625,3.5,35,5.2,28,2.05,345],["Kog'Maw",635,99,3.75,0.55,61,0,0.665,2.65,24,4.45,33,1.1,330],["LeBlanc",598,108,7.5,0.55,55,0,0.658,1.5,22,4.2,30,1.3,340],["Lee Sin",645,108,7.5,0.7,66,0,0.651,3,36,4.5,32,2.05,345],["Leona",646,101,8.5,0.85,60,0,0.625,2.9,43,4.8,32,2.05,335],["Lillia",605,105,2.5,0.55,61,0,0.625,2.7,22,4.5,32,1.55,330],["Lissandra",620,110,7,0.55,55,0,0.656,1.5,22,4.2,30,1.3,325],["Locke",620,109,9,0.9,58,0,0.688,3.3,32,4.2,32,2.05,340],["Lucian",641,100,3.75,0.65,60,0,0.638,2.5,28,4.2,33,1.1,335],["Lulu",565,92,6,0.6,47,0,0.625,2.25,26,4.6,30,1.3,330],["Lux",580,99,5.5,0.55,54,0,0.669,3,21,5.2,30,1.3,330],["Malphite",665,104,7,0.55,62,0,0.736,3.4,40,4.95,28,2.05,335],["Malzahar",580,101,6,0.6,55,0,0.625,1.5,18,4.7,30,1.3,335],["Maokai",665,109,5,0.75,64,0,0.8,2.125,35,5.2,32,2.05,335],["Master Yi",640,105,7.5,0.65,65,0,0.679,2.5,33,4.5,32,2.05,355],["Mel",630,99,6,0.55,54,0,0.625,2.5,21,5.2,30,1.3,330],["Milio",560,88,5,0.5,48,0,0.625,3,26,4.6,30,1.3,330],["Miss Fortune",625,100,3.75,0.65,55,0,0.656,3,25,4,33,1.1,325],["Mordekaiser",645,104,5,0.75,61,0,0.625,1,37,4.2,32,2.05,335],["Morgana",630,104,5.5,0.4,56,0,0.625,1.53,25,4.2,30,1.3,335],["Naafiri",610,105,6.25,0.6,55,0,0.663,2.1,28,4.2,32,2.05,340],["Nami",560,88,5.5,0.55,54,0,0.644,2.61,29,5.2,30,1.3,335],["Nasus",650,104,9,0.9,67,0,0.638,3.48,34,4.7,32,2.05,350],["Nautilus",646,100,8.5,0.55,61,0,0.706,1,39,4.95,32,2.05,325],["Neeko",610,104,7.5,0.75,48,0,0.625,3.5,21,5.2,30,1.3,340],["Nidalee",610,109,6,0.6,58,0,0.638,3.22,32,5,30,1.45,335],["Nilah",570,101,6,0.9,58,0,0.697,1.25,27,4.2,32,2.05,340],["Nocturne",640,109,7,0.75,62,0,0.721,2.7,36,4.2,32,1.55,345],["Nunu & Willump",610,90,5,0.8,61,0,0.625,2.25,29,4.2,32,2.05,345],["Olaf",645,119,6.5,0.6,68,0,0.72,2.7,35,4.2,32,2.05,350],["Orianna",565,110,7,0.55,44,0,0.658,3.5,20,4.2,26,1.3,325],["Ornn",660,109,9,0.9,69,0,0.625,2,33,5.2,32,2.05,335],["Pantheon",650,109,6,0.65,64,0,0.658,2.95,40,4.95,28,2.05,345],["Poppy",610,110,9,0.8,56,0,0.658,2.5,35,5,32,2.05,345],["Pyke",670,110,7,0.5,62,0,0.667,2.5,37,4.7,32,2.05,330],["Qiyana",590,115,8,0.9,64,0,0.688,2.1,31,4.5,32,2.05,335],["Quinn",565,107,5.5,0.55,59,0,0.668,3.1,28,4.7,33,1.1,330],["Rakan",610,99,5,0.5,62,0,0.635,3,30,4.9,32,2.05,335],["Rammus",645,100,8,0.55,65,0,0.7,2.215,35,4.5,32,2.05,335],["Rek'Sai",600,99,2.5,0.5,62,0,0.667,2,35,4.5,32,2.05,340],["Rell",620,104,7.5,0.85,55,0,0.625,2,30,4,28,1.8,315],["Renata Glasc",545,94,5.5,0.55,49,0,0.625,2.11,27,4.7,30,1.3,330],["Renekton",660,111,8,0.75,69,0,0.665,2.75,35,5.2,28,2.05,345],["Rengar",590,104,6,0.5,68,0,0.667,3,34,4.2,32,2.05,345],["Riven",630,100,8.5,0.5,64,0,0.625,3.5,33,4.4,32,2.05,340],["Rumble",640,105,7,0.6,64,0,0.644,1.85,36,4.7,28,1.55,345],["Ryze",620,124,8,0.8,55,0,0.658,2.11,22,4.2,32,1.3,340],["Samira",630,108,3.25,0.55,57,0,0.658,3.3,26,4.7,33,1.1,335],["Sejuani",630,114,8.5,1,66,0,0.688,3.5,34,5.45,32,2.05,340],["Senna",530,89,3.5,0.55,50,0,0.625,2.6,25,4,33,1.1,330],["Seraphine",570,95,6.5,0.6,50,0,0.669,2,26,4.2,30,1.3,330],["Sett",670,114,7,0.5,60,0,0.625,1.75,33,4.7,28,2.05,340],["Shaco",630,99,8.5,0.55,63,0,0.694,3,30,4,32,2.05,345],["Shen",610,99,8.5,0.75,64,0,0.751,3,34,4.2,32,2.05,340],["Shyvana",625,95,7,0.65,62,0,0.638,2,35,4,32,2.05,350],["Singed",650,96,9.5,0.55,63,0,0.7,1.9,34,4.2,32,2.05,345],["Sion",655,87,9,0.8,68,0,0.679,1.3,36,4.2,32,2.05,345],["Sivir",600,104,3.25,0.55,60,0,0.625,1.6,30,4,33,1.1,335],["Skarner",630,110,7.5,0.75,63,0,0.625,2,33,4.5,32,2.05,335],["Smolder",575,100,3.75,0.6,58,0,0.638,4,24,4,33,1.1,330],["Sona",550,91,5.5,0.55,49,0,0.644,2.3,26,4.2,30,1.3,325],["Soraka",605,88,2.5,0.5,50,0,0.625,2.14,32,5,30,1.3,325],["Swain",595,99,3,0.5,58,0,0.625,2.11,25,4.7,31,1.55,330],["Sylas",600,122,9,0.9,61,0,0.645,3.5,29,5.2,32,2.55,340],["Syndra",583,100,6.5,0.6,54,0,0.658,2,25,4,30,1.3,330],["Tahm Kench",640,103,6.5,0.55,56,0,0.658,2.5,39,4.7,32,2.05,335],["Taliyah",550,104,6.5,0.65,58,0,0.658,1.36,18,4.7,28,1.3,330],["Talon",658,109,8.5,0.75,68,0,0.625,2.9,30,4.7,36,2.05,335],["Taric",645,99,6,0.5,55,0,0.625,2,40,4.3,28,2.05,340],["Teemo",615,104,5.5,0.65,54,0,0.69,3.38,24,4.5,30,1.3,330],["Thresh",620,120,7,0.55,56,0,0.625,3.5,33,0,30,1.55,330],["Tristana",640,102,4,0.5,60,0,0.656,1.5,30,4,33,1.1,325],["Trundle",650,110,6,0.75,68,0,0.67,2.9,37,4.5,32,2.05,350],["Tryndamere",696,108,8.5,0.9,66,0,0.67,3.4,33,4.8,32,2.05,345],["Twisted Fate",604,108,5.5,0.6,52,0,0.625,2.5,24,4.35,30,1.3,330],["Twitch",630,98,3.75,0.6,59,0,0.679,3,27,4,33,1.1,330],["Udyr",664,92,6,0.75,62,0,0.65,3,31,4.7,32,2.05,350],["Urgot",655,102,7.5,0.7,63,0,0.625,3.75,36,5,32,2.05,330],["Varus",600,105,3.5,0.55,59,0,0.658,3.5,24,4,33,1.1,330],["Vayne",580,98,4,0.5,60,0,0.658,2.8,23,4.6,33,1.1,330],["Veigar",580,108,6.5,0.6,52,0,0.625,2.24,18,5.2,32,1.3,340],["Vel'Koz",590,102,5.5,0.55,55,0,0.643,1.59,22,4.7,30,1.3,340],["Vex",590,104,6.5,0.6,54,0,0.669,1,23,4.45,28,1.3,335],["Vi",655,105,10,1,63,0,0.644,2,30,4.7,32,2.05,340],["Viego",630,109,7,0.7,57,0,0.658,2.75,34,4.6,32,2.05,345],["Viktor",600,100,8,0.65,53,0,0.658,2.11,23,4.4,30,1.3,335],["Vladimir",600,110,7,0.6,55,0,0.658,2,24,4.5,30,1.3,330],["Volibear",650,104,9,0.75,65,0,0.625,2,35,5.2,32,2.05,340],["Warwick",620,99,4,0.75,65,0,0.638,2,33,4.4,32,2.05,335],["Wukong",610,99,3.5,0.65,66,0,0.69,3,31,4.7,28,2.05,340],["Xayah",630,107,3.25,0.75,60,0,0.658,3.9,25,4.2,33,1.1,330],["Xerath",575,106,5.5,0.55,55,0,0.658,1.36,22,4.7,30,1.3,340],["Xin Zhao",620,106,8,0.7,63,0,0.645,3.5,35,4.4,32,2.05,345],["Yasuo",590,110,6.5,0.9,60,0,0.697,3.5,32,4.6,32,2.05,345],["Yone",620,105,7.5,0.75,62,0,0.625,3.5,33,4.6,32,2.05,345],["Yorick",650,114,8,0.8,62,0,0.625,2,36,4.5,32,2.05,340],["Yunara",590,110,4,0.55,55,0,0.65,2,25,4.4,33,1.1,325],["Yuumi",500,69,5,0.55,49,0,0.625,1,25,4.2,25,1.1,330],["Zaahen",640,114,7.5,0.8,63,0,0.625,2.5,36,5,32,2.05,345],["Zac",685,109,5,0.5,60,0,0.736,1.6,33,5.2,32,2.05,340],["Zed",654,99,7,0.65,63,0,0.651,3.3,32,4.7,29,2.05,345],["Zeri",600,110,3.25,0.7,56,0,0.658,2,24,4.2,33,1.1,330],["Ziggs",606,106,6.5,0.6,55,0,0.656,2,21,4.7,30,1.3,325],["Zilean",574,96,5.5,0.5,52,0,0.658,2.13,24,5,30,1.3,335],["Zoe",630,106,7.5,0.6,58,0,0.658,2.5,21,4.7,30,1.3,340],["Zyra",574,93,5.5,0.5,53,0,0.681,2.11,29,4.2,30,1.3,340]];
+  const PATCH = "16.17.1";
+
+  var curve = function (l) { return (l - 1) * (0.7025 + 0.0175 * (l - 1)); };
+
+  var STATS = [
+    { k: "hp",  label: "Health",        short: "HP",  dp: 0, base: 1,  growth: 2,  pct: false, f: function (c, m) { return c[1] + c[2] * m; } },
+    { k: "hp5", label: "Health regen",  short: "HP5", dp: 2, base: 3,  growth: 4,  pct: false, f: function (c, m) { return c[3] + c[4] * m; } },
+    { k: "ad",  label: "Attack damage", short: "AD",  dp: 1, base: 5,  growth: 6,  pct: false, f: function (c, m) { return c[5] + c[6] * m; } },
+    { k: "as",  label: "Attack speed",  short: "AS",  dp: 3, base: 7,  growth: 8,  pct: true,  f: function (c, m) { return c[7] * (1 + (c[8] / 100) * m); } },
+    { k: "ar",  label: "Armor",         short: "AR",  dp: 1, base: 9,  growth: 10, pct: false, f: function (c, m) { return c[9] + c[10] * m; } },
+    { k: "mr",  label: "Magic resist",  short: "MR",  dp: 1, base: 11, growth: 12, pct: false, f: function (c, m) { return c[11] + c[12] * m; } },
+    { k: "ms",  label: "Move speed",    short: "MS",  dp: 0, base: 13, growth: -1, pct: false, f: function (c) { return c[13]; } }
+  ];
+
+  var byKey = {};
+  STATS.forEach(function (s) { byKey[s.k] = s; });
+
+  var level = 18;
+  var sortKey = "bst";
+  var query = "";
+  var openName = null;
+  var scored = [];
+
+  var adZero = D.filter(function (c) { return !c[6]; }).length;
+
+  var el = {
+    level:     document.getElementById("level"),
+    levelRead: document.getElementById("level-read"),
+    search:    document.getElementById("search"),
+    headRow:   document.getElementById("head-row"),
+    body:      document.getElementById("body"),
+    note:      document.getElementById("table-note"),
+    count:     document.getElementById("t-count"),
+    patch:     document.getElementById("t-patch"),
+    leader:    document.getElementById("t-leader"),
+    leaderKey: document.getElementById("t-leader-key"),
+    shown:     document.getElementById("t-shown")
+  };
+
+  function fmt(v, dp) { return v.toFixed(dp); }
+
+  /* Recompute every value, its roster-relative position and its rank for the
+     current level. Ranks are per-stat, so a row can be 3rd in armor and 140th
+     in move speed. */
+  function rescore() {
+    var m = curve(level);
+
+    scored = D.map(function (c) {
+      var v = {};
+      STATS.forEach(function (s) { v[s.k] = s.f(c, m); });
+      return { name: c[0], raw: c, v: v, norm: {}, rank: {}, bst: 0 };
+    });
+
+    STATS.forEach(function (s) {
+      var vals = scored.map(function (r) { return r.v[s.k]; });
+      var lo = Math.min.apply(null, vals);
+      var hi = Math.max.apply(null, vals);
+      var span = hi - lo;
+
+      var order = scored.slice().sort(function (a, b) { return b.v[s.k] - a.v[s.k]; });
+      order.forEach(function (r, i) { r.rank[s.k] = i + 1; });
+
+      scored.forEach(function (r) {
+        r.norm[s.k] = span === 0 ? 50 : ((r.v[s.k] - lo) / span) * 100;
+      });
+    });
+
+    scored.forEach(function (r) {
+      var sum = 0;
+      STATS.forEach(function (s) { sum += r.norm[s.k]; });
+      r.bst = sum / STATS.length;
+    });
+  }
+
+  function visible() {
+    var t = query.trim().toLowerCase();
+    return scored
+      .filter(function (r) { return !t || r.name.toLowerCase().indexOf(t) !== -1; })
+      .sort(function (a, b) {
+        if (sortKey === "bst") return b.bst - a.bst;
+        var d = b.v[sortKey] - a.v[sortKey];
+        return d !== 0 ? d : a.name.localeCompare(b.name);
+      });
+  }
+
+  function buildHead() {
+    el.headRow.innerHTML = "";
+
+    var cols = [{ k: "rank", short: "#", sortable: false },
+                { k: "name", short: "Champion", sortable: false }]
+      .concat(STATS.map(function (s) { return { k: s.k, short: s.short, sortable: true }; }))
+      .concat([{ k: "bst", short: "BST", sortable: true }]);
+
+    cols.forEach(function (col) {
+      var th = document.createElement("th");
+      th.className = "col-" + col.k;
+
+      if (!col.sortable) {
+        var span = document.createElement("span");
+        span.className = "rail-label";
+        span.style.display = "block";
+        span.style.padding = "9px 8px";
+        span.textContent = col.short;
+        th.appendChild(span);
+        el.headRow.appendChild(th);
+        return;
+      }
+
+      if (sortKey === col.k) th.setAttribute("aria-sort", "descending");
+
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = col.short;
+
+      if (col.k === "ad" && adZero === D.length) {
+        var flag = document.createElement("span");
+        flag.className = "flag";
+        flag.textContent = " •";
+        flag.title = "Riot reports 0 growth for every champion on this patch";
+        b.appendChild(flag);
+      }
+
+      var label = col.k === "bst" ? "base stat total" : byKey[col.k].label;
+      b.setAttribute("aria-label", "Sort by " + label + ", highest first");
+      b.addEventListener("click", function () {
+        sortKey = col.k;
+        openName = null;
+        buildHead();
+        render();
+      });
+
+      th.appendChild(b);
+      el.headRow.appendChild(th);
+    });
+  }
+
+  function statLine(r, s) {
+    var line = document.createElement("div");
+    line.className = "stat-line";
+
+    var name = document.createElement("span");
+    name.className = "name";
+    name.textContent = s.label;
+
+    var now = document.createElement("span");
+    now.className = "now";
+    now.textContent = fmt(r.v[s.k], s.dp);
+
+    var meter = document.createElement("span");
+    meter.className = "meter";
+    var fill = document.createElement("span");
+    fill.style.width = Math.max(1, r.norm[s.k]) + "%";
+    meter.appendChild(fill);
+
+    var place = document.createElement("span");
+    place.className = "place";
+    place.textContent = "#" + r.rank[s.k];
+
+    line.appendChild(name);
+    line.appendChild(now);
+    line.appendChild(meter);
+    line.appendChild(place);
+    return line;
+  }
+
+  function detailRow(r, colspan) {
+    var tr = document.createElement("tr");
+    tr.className = "detail";
+    var td = document.createElement("td");
+    td.colSpan = colspan;
+
+    var grid = document.createElement("div");
+    grid.className = "detail-grid";
+    STATS.forEach(function (s) { grid.appendChild(statLine(r, s)); });
+    td.appendChild(grid);
+
+    var growth = document.createElement("p");
+    growth.className = "growth";
+    var parts = STATS.filter(function (s) { return s.growth >= 0; }).map(function (s) {
+      var g = r.raw[s.growth];
+      return s.short + " " + fmt(r.raw[s.base], s.dp) + " + " + g + (s.pct ? "%" : "") + "/lvl";
+    });
+    growth.innerHTML = "<b>Base + growth</b> &nbsp; " + parts.join("&nbsp; &middot; &nbsp;") +
+      "&nbsp; &middot; &nbsp; MS " + r.raw[13] + " (flat)";
+    td.appendChild(growth);
+
+    tr.appendChild(td);
+    return tr;
+  }
+
+  function render() {
+    var rows = visible();
+    var colspan = STATS.length + 3;
+
+    el.body.innerHTML = "";
+
+    if (rows.length === 0) {
+      var tr = document.createElement("tr");
+      var td = document.createElement("td");
+      td.colSpan = colspan;
+      td.className = "empty";
+      td.textContent = "No champion matches “" + query.trim() + "”";
+      tr.appendChild(td);
+      el.body.appendChild(tr);
+    }
+
+    rows.forEach(function (r, i) {
+      var tr = document.createElement("tr");
+      tr.className = "champ" + (openName === r.name ? " open" : "");
+      tr.tabIndex = 0;
+      tr.setAttribute("role", "button");
+      tr.setAttribute("aria-expanded", openName === r.name ? "true" : "false");
+      tr.setAttribute("aria-label", r.name + ", detailed stats");
+
+      var rank = document.createElement("td");
+      var rankCell = document.createElement("div");
+      rankCell.className = "cell rank";
+      rankCell.textContent = String(i + 1).padStart(2, "0");
+      rank.appendChild(rankCell);
+      tr.appendChild(rank);
+
+      var name = document.createElement("td");
+      var nameCell = document.createElement("div");
+      nameCell.className = "cell name";
+      nameCell.textContent = r.name;
+      name.appendChild(nameCell);
+      tr.appendChild(name);
+
+      STATS.forEach(function (s) {
+        var td = document.createElement("td");
+        var cell = document.createElement("div");
+        cell.className = "cell";
+        cell.textContent = fmt(r.v[s.k], s.dp);
+
+        var track = document.createElement("span");
+        track.className = "track";
+        track.style.width = Math.max(1, r.norm[s.k]) + "%";
+        cell.appendChild(track);
+
+        td.appendChild(cell);
+        tr.appendChild(td);
+      });
+
+      var bst = document.createElement("td");
+      var bstCell = document.createElement("div");
+      bstCell.className = "cell bst";
+      bstCell.textContent = r.bst.toFixed(1);
+      var bstTrack = document.createElement("span");
+      bstTrack.className = "track";
+      bstTrack.style.width = Math.max(1, r.bst) + "%";
+      bstCell.appendChild(bstTrack);
+      bst.appendChild(bstCell);
+      tr.appendChild(bst);
+
+      function toggle() {
+        openName = openName === r.name ? null : r.name;
+        render();
+      }
+      tr.addEventListener("click", toggle);
+      tr.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+
+      el.body.appendChild(tr);
+      if (openName === r.name) el.body.appendChild(detailRow(r, colspan));
+    });
+
+    var what = sortKey === "bst" ? "base stat total" : byKey[sortKey].label;
+    el.note.textContent = rows.length + " shown — ranked by " + what + " at level " + level;
+    el.shown.textContent = rows.length + " / " + D.length;
+    el.leaderKey.textContent = "Top by " + (sortKey === "bst" ? "total" : byKey[sortKey].short);
+    el.leader.textContent = rows.length ? rows[0].name : "—";
+  }
+
+  el.level.addEventListener("input", function () {
+    level = +el.level.value;
+    el.levelRead.textContent = level;
+    rescore();
+    render();
+  });
+
+  el.search.addEventListener("input", function () {
+    query = el.search.value;
+    openName = null;
+    render();
+  });
+
+  el.count.textContent = D.length;
+  el.patch.textContent = PATCH;
+  document.getElementById("f-patch").textContent = PATCH;
+
+  if (adZero === D.length && D.length > 0) {
+    document.getElementById("ad-zero-count").textContent = D.length;
+    document.getElementById("ad-caution").hidden = false;
+  }
+
+  buildHead();
+  rescore();
+  render();
+})();
+</script>
