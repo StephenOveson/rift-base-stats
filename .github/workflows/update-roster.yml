@@ -36,7 +36,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Regenerate artifact
         run: node scripts/build-roster.mjs ${{ inputs.force && '--force' || '' }}
