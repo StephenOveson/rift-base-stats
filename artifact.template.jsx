@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 
 /* Stats are embedded rather than fetched: the artifact sandbox blocks outbound
-   requests, so a live Data Dragon call fails here. Values are patch 16.17,
-   covering Aatrox-Tryndamere. Order per row:
+   requests, so a live Data Dragon call fails here. The patch and roster size
+   are whatever the build baked in — don't restate them here, or a rebuild
+   silently ships a stale claim. Order per row:
    name, hp, hp+, hp5, hp5+, ad, ad+, as, as+%, ar, ar+, mr, mr+, ms */
 const D = __DATA__;
 const PATCH = "__PATCH__";
@@ -194,9 +195,19 @@ export default function RiftRoster(){
           slider moves, so a champion with a high base and thin growth slides down as you climb.
           Level 18 is base + 17 &times; growth.<br/><br/>
           Stats are baked in rather than fetched, because this sandbox blocks outbound requests.
-          That means no champion portraits and a roster that stops at Tryndamere &mdash; and the
-          numbers are frozen at patch 16.17 rather than tracking live. The standalone HTML version
-          pulls the full current roster from Riot.
+          That means no champion portraits, and the numbers are frozen at patch {PATCH} rather
+          than tracking live &mdash; the standalone HTML version pulls the current roster from Riot.
+          {D.every(c=>!c[6]) && (
+            <>
+              <br/><br/>
+              <strong style={{color:LIT}}>Data caveat for patch {PATCH}:</strong> attack damage
+              growth (the AD-per-level field) came back as exactly zero for all {D.length}
+              champions in Riot&#39;s source data &mdash; a known upstream data fault, not a real
+              balance change. Every other stat here (HP, regen, armor, resist, attack speed, move
+              speed) checks out normally, but AD growth at higher levels should be treated as
+              unreliable until Riot corrects it.
+            </>
+          )}
         </footer>
       </div>
     </div>

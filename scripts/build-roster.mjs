@@ -57,8 +57,15 @@ const bakedPatch = async () => {
   }
 };
 
+/**
+ * Fatal `problems` mean we parsed the response wrong and cannot trust any of
+ * it. Non-fatal `warnings` mean Riot's own export is off: the numbers are a
+ * faithful copy of what they shipped, so building is still the right call as
+ * long as the artifact says so.
+ */
 function check(rows) {
   const problems = [];
+  const warnings = [];
 
   // Roster size. A collapse here means a malformed or partial response.
   if (rows.length < 150) problems.push(`only ${rows.length} champions parsed`);
@@ -72,13 +79,16 @@ function check(rows) {
   }
 
   // Riot has shipped builds where attackdamageperlevel is 0 for the entire
-  // roster. That is a Riot data fault, not a parsing one, and it would quietly
-  // flatten AD scaling across the whole artifact. Refuse to build on it.
+  // roster — a Riot data fault, not a parsing one. This used to be fatal,
+  // because flattening AD scaling across the artifact silently was worse than
+  // shipping nothing. The templates now detect the same condition and print a
+  // callout naming it, so it is no longer silent: warn and build, rather than
+  // freezing the artifact on an old patch for as long as Riot's export is bad.
   if (rows.every((r) => !r[6])) {
-    problems.push("attackdamageperlevel is 0 for every champion — upstream data fault");
+    warnings.push("attackdamageperlevel is 0 for every champion — upstream data fault");
   }
 
-  return problems;
+  return { problems, warnings };
 }
 
 const main = async () => {
@@ -99,7 +109,8 @@ const main = async () => {
     .map(toRow)
     .sort((a, b) => a[0].localeCompare(b[0]));
 
-  const problems = check(rows);
+  const { problems, warnings } = check(rows);
+  for (const w of warnings) console.warn(`Warning: ${w}`);
   if (problems.length) {
     console.error("Sanity checks failed, keeping the existing artifact:");
     for (const p of problems) console.error(`  - ${p}`);
