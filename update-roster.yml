@@ -1,0 +1,55 @@
+# .github/workflows/update-roster.yml
+#
+# Cron has no "every two weeks" expression. The 1st and 15th is the usual
+# stand-in: two runs a month, 14-16 days apart, and unlike a weekly-with-parity
+# check it never drifts across year boundaries.
+#
+# Note: GitHub disables scheduled workflows in repos with no activity for 60
+# days. If the roster is the only thing touching this repo, the commits it makes
+# keep it alive on their own — but a quiet stretch between patches can still
+# trip it, so re-enable from the Actions tab if it goes dormant.
+
+name: Update rift roster
+
+on:
+  schedule:
+    - cron: "0 12 1,15 * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Rebuild even if the patch is unchanged"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-roster
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Regenerate artifact
+        run: node scripts/build-roster.mjs ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit if the patch moved
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No change — still on the same patch."
+            exit 0
+          fi
+          PATCH=$(grep -oP 'const PATCH = "\K[^"]+' src/rift-roster-artifact.jsx)
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: rift roster stats for patch ${PATCH}"
+          git push
