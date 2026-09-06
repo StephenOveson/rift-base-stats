@@ -44,7 +44,7 @@
   }
 
   .shell {
-    max-width: 1060px;
+    max-width: 1220px;
     margin: 0 auto;
     padding: 28px 20px 72px;
   }
@@ -236,7 +236,7 @@
 
   table {
     width: 100%;
-    min-width: 940px;
+    min-width: 1120px;
     border-collapse: collapse;
     font-variant-numeric: tabular-nums;
   }
@@ -258,7 +258,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    padding: 14px 14px 13px;
+    padding: 14px 24px 13px;
     font-family: var(--display);
     font-size: 11px;
     font-weight: 600;
@@ -295,7 +295,7 @@
 
   .cell {
     position: relative;
-    padding: 13px 14px 14px;
+    padding: 12px 24px 20px;
     text-align: right;
     font-family: var(--num);
     font-size: 14.5px;
@@ -304,29 +304,34 @@
   }
 
   /* The bar under each number encodes where that champion sits between the
-     roster's min and max for that stat at the current level. */
+     roster's min and max for that stat at the current level. The groove is
+     drawn at full column width so the fill reads as a share of a known scale,
+     not as a bar of arbitrary length. */
   .cell .track {
     position: absolute;
-    left: 14px;
-    right: 14px;
-    bottom: 6px;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.06);
+    left: 24px;
+    right: 24px;
+    bottom: 8px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.09);
   }
 
   .cell .track span {
     display: block;
     height: 100%;
     background: var(--gold);
-    opacity: 0.75;
   }
+
+  /* BST is the composite of the other seven, so its bar takes the brighter
+     tint to read as a summary rather than another peer measurement. */
+  .cell.bst .track span { background: var(--gold-lit); }
 
   .cell.rank {
     text-align: left;
     color: var(--faint);
     font-size: 12px;
-    width: 58px;
-    padding-left: 18px;
+    width: 66px;
+    padding-left: 24px;
   }
 
   .cell.name {
@@ -337,11 +342,11 @@
     letter-spacing: 0.01em;
     color: var(--ink);
     white-space: nowrap;
-    min-width: 176px;
-    padding-right: 22px;
+    min-width: 190px;
+    padding-right: 30px;
   }
 
-  .cell.bst { color: var(--gold-lit); font-weight: 700; padding-right: 18px; }
+  .cell.bst { color: var(--gold-lit); font-weight: 700; }
 
   /* ---------- expanded detail ---------- */
 
@@ -382,8 +387,8 @@
   }
 
   .stat-line .meter {
-    height: 5px;
-    background: rgba(255, 255, 255, 0.07);
+    height: 8px;
+    background: rgba(255, 255, 255, 0.09);
   }
 
   .stat-line .meter span {
