@@ -33,6 +33,11 @@
 
   * { box-sizing: border-box; }
 
+  /* Author `display` beats the UA stylesheet's [hidden] rule, so .caution's
+     flex would keep it on screen while hidden. Restate it with weight rather
+     than relying on the host page's reset. */
+  [hidden] { display: none !important; }
+
   body {
     margin: 0;
     background: var(--ground);
@@ -502,9 +507,12 @@
     <h2>How the numbers are derived</h2>
     <p>
       A stat at level <i>L</i> is <code>base + growth &times; (L&minus;1) &times; (0.7025 + 0.0175 &times; (L&minus;1))</code>
-      &mdash; Riot&#39;s per-level curve, which is why level 18 is worth about 17.85 flat
-      growth steps rather than 17. Attack speed is the exception: its growth is a
-      percentage applied to the base, so it compounds as <code>base &times; (1 + growth% &times; curve)</code>.
+      &mdash; Riot&#39;s per-level curve. The bracket reaches exactly 1.0 at level 18, so a
+      maxed champion is precisely <code>base + 17 &times; growth</code>; every level before that
+      is worth less than a flat share (at level 10 the multiplier is 7.74, not 9), which is why
+      early levels feel thinner than the raw growth number suggests. Attack speed is the
+      exception: its growth is a percentage applied to the base, so it compounds as
+      <code>base &times; (1 + growth% &times; curve)</code>.
     </p>
     <p>
       <b>BST</b> is a base stat total: each of the seven stats is min&ndash;max scaled from 0 to
@@ -537,6 +545,11 @@
      Dragon, so the page can say where its numbers came from. */
   const AD_SOURCE = "__AD_SOURCE__";
 
+  /* Champions whose AD growth the build genuinely could not resolve. A stat of
+     0 is not evidence of that — some champions really do have no AD growth —
+     so the caution below keys on this list, never on counting zeros. */
+  const AD_MISSING = __AD_MISSING__;
+
   var curve = function (l) { return (l - 1) * (0.7025 + 0.0175 * (l - 1)); };
 
   var STATS = [
@@ -557,8 +570,6 @@
   var query = "";
   var openName = null;
   var scored = [];
-
-  var adZero = D.filter(function (c) { return !c[6]; }).length;
 
   var el = {
     level:     document.getElementById("level"),
@@ -649,11 +660,13 @@
       b.type = "button";
       b.textContent = col.short;
 
-      if (col.k === "ad" && adZero > 0) {
+      if (col.k === "ad" && AD_MISSING.length) {
         var flag = document.createElement("span");
         flag.className = "flag";
         flag.textContent = " •";
-        flag.title = "Riot reports 0 growth for every champion on this patch";
+        flag.title = AD_MISSING.length === D.length
+          ? "AD growth is unavailable for the whole roster on this patch"
+          : "AD growth could not be recovered for " + AD_MISSING.join(", ");
         b.appendChild(flag);
       }
 
@@ -830,18 +843,15 @@
   el.patch.textContent = PATCH;
   document.getElementById("f-patch").textContent = PATCH;
 
-  /* Three states: Riot's export is broken and we could not repair it, it was
-     broken and we repaired part of it, or the numbers are simply fine. */
-  if (adZero > 0) {
-    var missing = D.filter(function (c) { return !c[6]; }).map(function (c) { return c[0]; });
-    document.getElementById("ad-caution-text").textContent = adZero === D.length
+  if (AD_MISSING.length) {
+    document.getElementById("ad-caution-text").textContent = AD_MISSING.length === D.length
       ? "Data Dragon reports attackdamageperlevel as 0 for all " + D.length +
         " champions on this patch, and the real values could not be recovered. That is an " +
         "upstream fault in Riot's export, not a balance change — AD below is base AD at every " +
         "level, and the column is flagged until the export is fixed."
-      : "Riot's export reports no AD growth for " + adZero + " of " + D.length +
-        " champions (" + missing.join(", ") + "), and the real values could not be recovered. " +
-        "AD for those is base AD at every level; the rest of the column is correct.";
+      : "AD growth could not be recovered for " + AD_MISSING.length + " of " + D.length +
+        " champions (" + AD_MISSING.join(", ") + "), so AD for those is base AD at every " +
+        "level. The rest of the column is correct.";
     document.getElementById("ad-caution").hidden = false;
   }
 
