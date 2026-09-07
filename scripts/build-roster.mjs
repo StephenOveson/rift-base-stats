@@ -17,6 +17,12 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 const DDRAGON = "https://ddragon.leagueoflegends.com";
+const CDRAGON = "https://raw.communitydragon.org";
+
+/* How many CommunityDragon character files to have in flight at once. The
+   repair only runs on a broken patch and only fetches what it must, but that
+   is still one sizable file per champion — be a polite client. */
+const CDRAGON_CONCURRENCY = 8;
 
 /* Two renderings of the same data. The .html one is what gets published as the
    Rift Base Stats artifact; the .jsx one predates it and is kept in step. Both
@@ -46,6 +52,80 @@ async function json(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
   return res.json();
+}
+
+/** "16.17.1" -> "16.17". CommunityDragon pins by major.minor only. */
+const cdragonPatch = (v) => v.split(".").slice(0, 2).join(".");
+
+/**
+ * Pull one champion's AD growth out of a CommunityDragon character record.
+ *
+ * Base AD is used as a fingerprint rather than trusting the key alone: a
+ * character file can hold several records (pets, alternate forms), and
+ * matching on a value both sources already agree about proves we are reading
+ * the right champion on the right patch before taking a number from it.
+ */
+function adGrowthFrom(bin, id, baseAd) {
+  const direct = bin[`Characters/${id}/CharacterRecords/Root`];
+  const records = (direct ? [direct] : Object.values(bin)).filter(
+    (v) => v && typeof v === "object" && typeof v.baseDamageModifiable === "object"
+  );
+
+  const match = records.find((r) => r.baseDamageModifiable?.baseValue === baseAd);
+  const growth = match?.damagePerLevelModifiable?.baseValue;
+  return typeof growth === "number" && Number.isFinite(growth) ? growth : null;
+}
+
+/**
+ * Data Dragon has been exporting attackdamageperlevel as 0 for the whole
+ * roster since somewhere in the 16.x line. CommunityDragon publishes the raw
+ * game files, which carry the real number and agree with Data Dragon on every
+ * other stat, so we repair just this one field from there.
+ *
+ * Never fatal: a champion we cannot resolve keeps its 0 and is reported. A
+ * partial roster is worth shipping — the artifact says which values are
+ * missing — where failing the build would ship nothing at all.
+ */
+async function repairAdGrowth(champs, patch) {
+  const tag = cdragonPatch(patch);
+  console.log(`attackdamageperlevel is 0 across the roster — repairing from CommunityDragon (${tag}).`);
+
+  const queue = champs.slice();
+  const unresolved = [];
+  let repaired = 0;
+
+  const worker = async () => {
+    for (let c = queue.pop(); c; c = queue.pop()) {
+      const key = c.id.toLowerCase();
+      try {
+        const bin = await json(`${CDRAGON}/${tag}/game/data/characters/${key}/${key}.bin.json`);
+        const growth = adGrowthFrom(bin, c.id, c.stats.attackdamage);
+        if (growth === null) {
+          unresolved.push(c.name);
+        } else {
+          c.stats.attackdamageperlevel = growth;
+          repaired++;
+        }
+      } catch {
+        unresolved.push(c.name);
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: CDRAGON_CONCURRENCY }, worker));
+
+  console.log(`Repaired ${repaired} of ${champs.length} champions.`);
+  if (unresolved.length) {
+    // Capped: a total outage lists the entire roster otherwise, which buries
+    // the one line that matters in the job log.
+    const shown = unresolved.sort().slice(0, 12);
+    const rest = unresolved.length - shown.length;
+    console.warn(
+      `Warning: no AD growth found for ${unresolved.length}: ${shown.join(", ")}` +
+        (rest ? `, and ${rest} more` : "")
+    );
+  }
+  return repaired;
 }
 
 const bakedPatch = async () => {
@@ -78,14 +158,17 @@ function check(rows) {
     }
   }
 
-  // Riot has shipped builds where attackdamageperlevel is 0 for the entire
-  // roster — a Riot data fault, not a parsing one. This used to be fatal,
-  // because flattening AD scaling across the artifact silently was worse than
-  // shipping nothing. The templates now detect the same condition and print a
-  // callout naming it, so it is no longer silent: warn and build, rather than
-  // freezing the artifact on an old patch for as long as Riot's export is bad.
-  if (rows.every((r) => !r[6])) {
-    warnings.push("attackdamageperlevel is 0 for every champion — upstream data fault");
+  // Whatever the CommunityDragon repair could not fill in stays at 0. The
+  // templates detect the same condition and print a callout naming it, so this
+  // is never silent — warn and build, rather than freezing the artifact on an
+  // old patch for as long as Riot's export stays bad.
+  const zeroAd = rows.filter((r) => !r[6]);
+  if (zeroAd.length === rows.length) {
+    warnings.push("attackdamageperlevel is 0 for every champion — upstream data fault, unrepaired");
+  } else if (zeroAd.length) {
+    warnings.push(
+      `attackdamageperlevel is still 0 for ${zeroAd.length}: ${zeroAd.map((r) => r[0]).join(", ")}`
+    );
   }
 
   return { problems, warnings };
@@ -105,9 +188,17 @@ const main = async () => {
   console.log(`Patch ${current ?? "none"} -> ${latest}. Rebuilding.`);
 
   const { data } = await json(`${DDRAGON}/cdn/${latest}/data/en_US/champion.json`);
-  const rows = Object.values(data)
-    .map(toRow)
-    .sort((a, b) => a[0].localeCompare(b[0]));
+  const champs = Object.values(data);
+
+  // Data Dragon stays the source of truth; CommunityDragon is consulted only
+  // to repair the one field Riot's export is currently zeroing out.
+  let adSource = "";
+  if (champs.length && champs.every((c) => !c.stats.attackdamageperlevel)) {
+    const repaired = await repairAdGrowth(champs, latest);
+    if (repaired) adSource = `CommunityDragon ${cdragonPatch(latest)}`;
+  }
+
+  const rows = champs.map(toRow).sort((a, b) => a[0].localeCompare(b[0]));
 
   const { problems, warnings } = check(rows);
   for (const w of warnings) console.warn(`Warning: ${w}`);
@@ -121,7 +212,8 @@ const main = async () => {
   for (const { template, output } of TARGETS) {
     const out = (await readFile(template, "utf8"))
       .replace("__DATA__", serialized)
-      .replace("__PATCH__", latest);
+      .replace("__PATCH__", latest)
+      .replace("__AD_SOURCE__", adSource);
     await writeFile(output, out);
   }
   console.log(`Wrote ${rows.length} champions at patch ${latest}.`);

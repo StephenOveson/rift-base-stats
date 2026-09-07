@@ -484,12 +484,7 @@
 
   <div class="caution" id="ad-caution" hidden>
     <strong>Riot data</strong>
-    <span>
-      Data Dragon reports <code>attackdamageperlevel</code> as <b>0</b> for all
-      <span id="ad-zero-count"></span> champions on this patch. That is an upstream fault in
-      Riot&#39;s export, not a balance change &mdash; AD below is base AD at every level, and the
-      column is flagged until the export is fixed.
-    </span>
+    <span id="ad-caution-text"></span>
   </div>
 
   <p class="table-note" id="table-note">&mdash;</p>
@@ -521,6 +516,7 @@
     <p>
       Values are baked in at build time rather than fetched: the artifact sandbox blocks
       outbound requests, so a live Data Dragon call fails here. Patch <b id="f-patch"></b>.
+      <span id="ad-source-note" hidden></span>
     </p>
   </footer>
 
@@ -536,6 +532,10 @@
      the baked one, and the workflow greps it again for the commit message. */
   const D = __DATA__;
   const PATCH = "__PATCH__";
+
+  /* Non-empty when the build had to source AD growth somewhere other than Data
+     Dragon, so the page can say where its numbers came from. */
+  const AD_SOURCE = "__AD_SOURCE__";
 
   var curve = function (l) { return (l - 1) * (0.7025 + 0.0175 * (l - 1)); };
 
@@ -649,7 +649,7 @@
       b.type = "button";
       b.textContent = col.short;
 
-      if (col.k === "ad" && adZero === D.length) {
+      if (col.k === "ad" && adZero > 0) {
         var flag = document.createElement("span");
         flag.className = "flag";
         flag.textContent = " •";
@@ -830,9 +830,27 @@
   el.patch.textContent = PATCH;
   document.getElementById("f-patch").textContent = PATCH;
 
-  if (adZero === D.length && D.length > 0) {
-    document.getElementById("ad-zero-count").textContent = D.length;
+  /* Three states: Riot's export is broken and we could not repair it, it was
+     broken and we repaired part of it, or the numbers are simply fine. */
+  if (adZero > 0) {
+    var missing = D.filter(function (c) { return !c[6]; }).map(function (c) { return c[0]; });
+    document.getElementById("ad-caution-text").textContent = adZero === D.length
+      ? "Data Dragon reports attackdamageperlevel as 0 for all " + D.length +
+        " champions on this patch, and the real values could not be recovered. That is an " +
+        "upstream fault in Riot's export, not a balance change — AD below is base AD at every " +
+        "level, and the column is flagged until the export is fixed."
+      : "Riot's export reports no AD growth for " + adZero + " of " + D.length +
+        " champions (" + missing.join(", ") + "), and the real values could not be recovered. " +
+        "AD for those is base AD at every level; the rest of the column is correct.";
     document.getElementById("ad-caution").hidden = false;
+  }
+
+  if (AD_SOURCE) {
+    var note = document.getElementById("ad-source-note");
+    note.textContent = " Data Dragon exports attackdamageperlevel as 0 on this patch, so AD" +
+      " growth is taken from " + AD_SOURCE + "'s raw game files instead; the two agree on" +
+      " every other stat.";
+    note.hidden = false;
   }
 
   buildHead();

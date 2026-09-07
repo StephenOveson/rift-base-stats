@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from "react";
    name, hp, hp+, hp5, hp5+, ad, ad+, as, as+%, ar, ar+, mr, mr+, ms */
 const D = __DATA__;
 const PATCH = "__PATCH__";
+const AD_SOURCE = "__AD_SOURCE__";
 
 const curve = (l) => (l - 1) * (0.7025 + 0.0175 * (l - 1));
 
@@ -197,15 +198,24 @@ export default function RiftRoster(){
           Stats are baked in rather than fetched, because this sandbox blocks outbound requests.
           That means no champion portraits, and the numbers are frozen at patch {PATCH} rather
           than tracking live &mdash; the standalone HTML version pulls the current roster from Riot.
-          {D.every(c=>!c[6]) && (
+          {D.some(c=>!c[6]) && (
             <>
               <br/><br/>
               <strong style={{color:LIT}}>Data caveat for patch {PATCH}:</strong> attack damage
-              growth (the AD-per-level field) came back as exactly zero for all {D.length}
-              champions in Riot&#39;s source data &mdash; a known upstream data fault, not a real
-              balance change. Every other stat here (HP, regen, armor, resist, attack speed, move
-              speed) checks out normally, but AD growth at higher levels should be treated as
-              unreliable until Riot corrects it.
+              growth (the AD-per-level field) came back as exactly zero for{" "}
+              {D.every(c=>!c[6]) ? `all ${D.length}` : `${D.filter(c=>!c[6]).length} of ${D.length}`}
+              {" "}champions in Riot&#39;s source data, and could not be recovered &mdash; a known
+              upstream data fault, not a real balance change. Every other stat here (HP, regen,
+              armor, resist, attack speed, move speed) checks out normally, but AD growth for
+              those champions should be treated as unreliable until Riot corrects it.
+            </>
+          )}
+          {AD_SOURCE && (
+            <>
+              <br/><br/>
+              Riot&#39;s export reports no AD growth on this patch, so that one field is taken
+              from {AD_SOURCE}&#39;s raw game files instead. The two sources agree on every
+              other stat.
             </>
           )}
         </footer>
