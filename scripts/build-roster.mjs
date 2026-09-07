@@ -72,8 +72,15 @@ function adGrowthFrom(bin, id, baseAd) {
   );
 
   const match = records.find((r) => r.baseDamageModifiable?.baseValue === baseAd);
-  const growth = match?.damagePerLevelModifiable?.baseValue;
-  return typeof growth === "number" && Number.isFinite(growth) ? growth : null;
+  if (!match) return null; // wrong or missing record — a genuine lookup failure
+
+  // Riot's bin format omits any field that holds its default value, so an
+  // absent damagePerLevelModifiable means 0, not a failure. Senna is the real
+  // case: she gains no AD per level by design (her passive's souls do it
+  // instead), and her record carries no growth field at all. Treating that as
+  // unresolved would flag a correct 0 as missing data.
+  const growth = match.damagePerLevelModifiable?.baseValue ?? 0;
+  return Number.isFinite(growth) ? growth : null;
 }
 
 /**
@@ -125,7 +132,7 @@ async function repairAdGrowth(champs, patch) {
         (rest ? `, and ${rest} more` : "")
     );
   }
-  return repaired;
+  return { repaired, unresolved };
 }
 
 const bakedPatch = async () => {
@@ -162,13 +169,11 @@ function check(rows) {
   // templates detect the same condition and print a callout naming it, so this
   // is never silent — warn and build, rather than freezing the artifact on an
   // old patch for as long as Riot's export stays bad.
-  const zeroAd = rows.filter((r) => !r[6]);
-  if (zeroAd.length === rows.length) {
+  // Only a roster-wide zero is a fault. Individual zeros are legitimate —
+  // Senna is designed with no AD growth — so they are not worth a warning;
+  // repairAdGrowth reports the champions it genuinely could not resolve.
+  if (rows.every((r) => !r[6])) {
     warnings.push("attackdamageperlevel is 0 for every champion — upstream data fault, unrepaired");
-  } else if (zeroAd.length) {
-    warnings.push(
-      `attackdamageperlevel is still 0 for ${zeroAd.length}: ${zeroAd.map((r) => r[0]).join(", ")}`
-    );
   }
 
   return { problems, warnings };
@@ -193,9 +198,11 @@ const main = async () => {
   // Data Dragon stays the source of truth; CommunityDragon is consulted only
   // to repair the one field Riot's export is currently zeroing out.
   let adSource = "";
+  let adMissing = [];
   if (champs.length && champs.every((c) => !c.stats.attackdamageperlevel)) {
-    const repaired = await repairAdGrowth(champs, latest);
+    const { repaired, unresolved } = await repairAdGrowth(champs, latest);
     if (repaired) adSource = `CommunityDragon ${cdragonPatch(latest)}`;
+    adMissing = unresolved.sort();
   }
 
   const rows = champs.map(toRow).sort((a, b) => a[0].localeCompare(b[0]));
@@ -213,7 +220,8 @@ const main = async () => {
     const out = (await readFile(template, "utf8"))
       .replace("__DATA__", serialized)
       .replace("__PATCH__", latest)
-      .replace("__AD_SOURCE__", adSource);
+      .replace("__AD_SOURCE__", adSource)
+      .replace("__AD_MISSING__", JSON.stringify(adMissing));
     await writeFile(output, out);
   }
   console.log(`Wrote ${rows.length} champions at patch ${latest}.`);

@@ -8,6 +8,10 @@ import { useState, useEffect, useMemo } from "react";
 const D = __DATA__;
 const PATCH = "__PATCH__";
 const AD_SOURCE = "__AD_SOURCE__";
+/* Champions whose AD growth the build could not resolve. A stat of 0 is not
+   evidence of that — some champions really have no AD growth — so the caveat
+   keys on this list rather than on counting zeros. */
+const AD_MISSING = __AD_MISSING__;
 
 const curve = (l) => (l - 1) * (0.7025 + 0.0175 * (l - 1));
 
@@ -198,16 +202,15 @@ export default function RiftRoster(){
           Stats are baked in rather than fetched, because this sandbox blocks outbound requests.
           That means no champion portraits, and the numbers are frozen at patch {PATCH} rather
           than tracking live &mdash; the standalone HTML version pulls the current roster from Riot.
-          {D.some(c=>!c[6]) && (
+          {AD_MISSING.length > 0 && (
             <>
               <br/><br/>
               <strong style={{color:LIT}}>Data caveat for patch {PATCH}:</strong> attack damage
-              growth (the AD-per-level field) came back as exactly zero for{" "}
-              {D.every(c=>!c[6]) ? `all ${D.length}` : `${D.filter(c=>!c[6]).length} of ${D.length}`}
-              {" "}champions in Riot&#39;s source data, and could not be recovered &mdash; a known
-              upstream data fault, not a real balance change. Every other stat here (HP, regen,
-              armor, resist, attack speed, move speed) checks out normally, but AD growth for
-              those champions should be treated as unreliable until Riot corrects it.
+              growth could not be recovered for{" "}
+              {AD_MISSING.length === D.length ? `all ${D.length} champions` : AD_MISSING.join(", ")}
+              , so AD for {AD_MISSING.length === D.length ? "every champion" : "those"} is base AD
+              at every level. Every other stat here (HP, regen, armor, resist, attack speed, move
+              speed) checks out normally.
             </>
           )}
           {AD_SOURCE && (
