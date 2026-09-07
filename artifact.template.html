@@ -102,14 +102,56 @@
     border-bottom: 1px solid var(--edge);
     padding: 14px 0 13px;
     display: grid;
-    gap: 12px;
-    grid-template-columns: minmax(260px, 1fr) minmax(180px, 320px);
+    gap: 12px 18px;
+    grid-template-columns: minmax(230px, 1fr) auto minmax(150px, 240px);
     align-items: center;
+  }
+
+  @media (max-width: 900px) {
+    .rail { grid-template-columns: 1fr 1fr; }
+    .rail .modes { grid-column: 1 / -1; }
   }
 
   @media (max-width: 640px) {
     .rail { grid-template-columns: 1fr; }
   }
+
+  /* Segmented control: one switch reinterprets all seven stat columns, rather
+     than seven more columns of growth sitting beside the values. */
+  .modes {
+    display: flex;
+    border: 1px solid var(--edge);
+    background: var(--plate);
+  }
+
+  .modes button {
+    flex: 1;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--edge);
+    cursor: pointer;
+    padding: 8px 15px;
+    font-family: var(--display);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mute);
+    white-space: nowrap;
+  }
+
+  .modes button:last-child { border-right: none; }
+  .modes button:hover { color: var(--gold-lit); }
+  .modes button:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+
+  .modes button[aria-pressed="true"] {
+    background: var(--gold-dim);
+    color: var(--gold-lit);
+    box-shadow: inset 0 -2px 0 var(--gold);
+  }
+
+  /* The level slider only means something in the at-level view. */
+  .level-control.inert { opacity: 0.4; }
 
   .level-control { display: flex; align-items: center; gap: 12px; }
 
@@ -472,11 +514,12 @@
   <div class="rule"></div>
 
   <div class="rail">
-    <div class="level-control">
+    <div class="level-control" id="level-control">
       <span class="rail-label" id="level-label">Level</span>
       <input type="range" id="level" min="1" max="18" step="1" value="18" aria-labelledby="level-label">
       <span class="level-read" id="level-read">18</span>
     </div>
+    <div class="modes" id="modes" role="group" aria-label="What the stat columns show"></div>
     <input type="search" id="search" placeholder="Find a champion" aria-label="Find a champion">
   </div>
 
@@ -516,10 +559,19 @@
     </p>
     <p>
       <b>BST</b> is a base stat total: each of the seven stats is min&ndash;max scaled from 0 to
-      100 across the whole roster <i>at the current level</i>, then averaged. It is a shape
-      comparison, not a power ranking &mdash; it weights move speed as heavily as health, and
-      knows nothing about abilities. Move the level slider and it recomputes, so a champion
-      with a fat base and thin growth visibly slides down the board as you climb.
+      100 across the whole roster, then averaged. It is a shape comparison, not a power ranking
+      &mdash; it weights move speed as heavily as health, and knows nothing about abilities.
+      Move the level slider and it recomputes, so a champion with a fat base and thin growth
+      visibly slides down the board as you climb.
+    </p>
+    <p>
+      The <b>Base / At level / Growth</b> switch reinterprets all seven stat columns at once:
+      values at level 1, values scaled to the chosen level, or the per-level growth rate. BST
+      recomputes with them, so in the growth view it ranks who scales hardest rather than who is
+      strongest now. A stat that is identical across the whole roster carries no information in
+      a given view and is dropped from that average rather than adding the same constant to
+      everyone &mdash; which is why move speed, having no growth at all, sits out the growth
+      view and shows a dash.
     </p>
     <p>
       Values are baked in at build time rather than fetched: the artifact sandbox blocks
@@ -565,15 +617,45 @@
   var byKey = {};
   STATS.forEach(function (s) { byKey[s.k] = s; });
 
+  /* One switch reinterprets all seven stat columns. Each view asks the roster
+     the same question in a different unit, so sorting and the in-cell bars
+     keep working unchanged. */
+  var MODES = [
+    { k: "base",   label: "Base",     note: "base values at level 1" },
+    { k: "level",  label: "At level", note: "" },
+    { k: "growth", label: "Growth",   note: "growth per level" }
+  ];
+  var byMode = {};
+  MODES.forEach(function (x) { byMode[x.k] = x; });
+
   var level = 18;
+  var mode = "level";
   var sortKey = "bst";
   var query = "";
   var openName = null;
   var scored = [];
 
+  /* A stat's value in the current view. null means the stat has no such value
+     — move speed has no growth — and is rendered as a dash, excluded from
+     ranking, and sorted last rather than being treated as a zero. */
+  function statValue(c, s, m) {
+    if (mode === "base") return c[s.base];
+    if (mode === "growth") return s.growth < 0 ? null : c[s.growth];
+    return s.f(c, m);
+  }
+
+  /* Growth figures need their own precision: a 0-dp health column reads fine
+     at 2568 but turns 4.5 AD per level into "5". */
+  function decimals(s) {
+    if (mode !== "growth") return s.dp;
+    return s.k === "hp" ? 1 : 2;
+  }
+
   var el = {
     level:     document.getElementById("level"),
+    levelControl: document.getElementById("level-control"),
     levelRead: document.getElementById("level-read"),
+    modes:     document.getElementById("modes"),
     search:    document.getElementById("search"),
     headRow:   document.getElementById("head-row"),
     body:      document.getElementById("body"),
@@ -585,38 +667,57 @@
     shown:     document.getElementById("t-shown")
   };
 
-  function fmt(v, dp) { return v.toFixed(dp); }
+  function fmt(v, s) {
+    if (v === null) return "—";
+    return v.toFixed(decimals(s)) + (mode === "growth" && s.pct ? "%" : "");
+  }
 
   /* Recompute every value, its roster-relative position and its rank for the
-     current level. Ranks are per-stat, so a row can be 3rd in armor and 140th
+     current view. Ranks are per-stat, so a row can be 3rd in armor and 140th
      in move speed. */
   function rescore() {
     var m = curve(level);
 
     scored = D.map(function (c) {
       var v = {};
-      STATS.forEach(function (s) { v[s.k] = s.f(c, m); });
+      STATS.forEach(function (s) { v[s.k] = statValue(c, s, m); });
       return { name: c[0], raw: c, v: v, norm: {}, rank: {}, bst: 0 };
     });
 
+    // Stats that are identical across the whole roster carry no information in
+    // this view, so they are left out of the composite rather than adding the
+    // same constant to everyone and flattening the spread.
+    var informative = [];
+
     STATS.forEach(function (s) {
-      var vals = scored.map(function (r) { return r.v[s.k]; });
+      var vals = scored
+        .map(function (r) { return r.v[s.k]; })
+        .filter(function (x) { return x !== null; });
+
+      if (!vals.length) {
+        scored.forEach(function (r) { r.norm[s.k] = null; r.rank[s.k] = null; });
+        return;
+      }
+
       var lo = Math.min.apply(null, vals);
       var hi = Math.max.apply(null, vals);
       var span = hi - lo;
+      if (span > 0) informative.push(s);
 
-      var order = scored.slice().sort(function (a, b) { return b.v[s.k] - a.v[s.k]; });
-      order.forEach(function (r, i) { r.rank[s.k] = i + 1; });
+      scored
+        .filter(function (r) { return r.v[s.k] !== null; })
+        .sort(function (a, b) { return b.v[s.k] - a.v[s.k]; })
+        .forEach(function (r, i) { r.rank[s.k] = i + 1; });
 
       scored.forEach(function (r) {
-        r.norm[s.k] = span === 0 ? 50 : ((r.v[s.k] - lo) / span) * 100;
+        r.norm[s.k] = r.v[s.k] === null ? null : (span === 0 ? 50 : ((r.v[s.k] - lo) / span) * 100);
       });
     });
 
     scored.forEach(function (r) {
       var sum = 0;
-      STATS.forEach(function (s) { sum += r.norm[s.k]; });
-      r.bst = sum / STATS.length;
+      informative.forEach(function (s) { sum += r.norm[s.k]; });
+      r.bst = informative.length ? sum / informative.length : 0;
     });
   }
 
@@ -626,17 +727,23 @@
       .filter(function (r) { return !t || r.name.toLowerCase().indexOf(t) !== -1; })
       .sort(function (a, b) {
         if (sortKey === "bst") return b.bst - a.bst;
-        var d = b.v[sortKey] - a.v[sortKey];
-        return d !== 0 ? d : a.name.localeCompare(b.name);
+        var av = a.v[sortKey], bv = b.v[sortKey];
+        if (av === null && bv === null) return a.name.localeCompare(b.name);
+        if (av === null) return 1;   // stats with no value in this view sort last
+        if (bv === null) return -1;
+        return bv - av || a.name.localeCompare(b.name);
       });
   }
 
   function buildHead() {
     el.headRow.innerHTML = "";
 
+    // "+" is the League convention for a per-level figure, so the header alone
+    // says which view you are in without reading the control.
+    var suffix = mode === "growth" ? "+" : "";
     var cols = [{ k: "rank", short: "#", sortable: false },
                 { k: "name", short: "Champion", sortable: false }]
-      .concat(STATS.map(function (s) { return { k: s.k, short: s.short, sortable: true }; }))
+      .concat(STATS.map(function (s) { return { k: s.k, short: s.short + suffix, sortable: true }; }))
       .concat([{ k: "bst", short: "BST", sortable: true }]);
 
     cols.forEach(function (col) {
@@ -671,7 +778,8 @@
       }
 
       var label = col.k === "bst" ? "base stat total" : byKey[col.k].label;
-      b.setAttribute("aria-label", "Sort by " + label + ", highest first");
+      b.setAttribute("aria-label", "Sort by " + label +
+        (mode === "growth" ? " growth per level" : "") + ", highest first");
       b.addEventListener("click", function () {
         sortKey = col.k;
         openName = null;
@@ -705,17 +813,19 @@
 
     var now = document.createElement("span");
     now.className = "now";
-    now.textContent = fmt(r.v[s.k], s.dp);
+    now.textContent = fmt(r.v[s.k], s);
 
     var meter = document.createElement("span");
     meter.className = "meter";
-    var fill = document.createElement("span");
-    fill.style.width = Math.max(1, r.norm[s.k]) + "%";
-    meter.appendChild(fill);
+    if (r.norm[s.k] !== null) {
+      var fill = document.createElement("span");
+      fill.style.width = Math.max(1, r.norm[s.k]) + "%";
+      meter.appendChild(fill);
+    }
 
     var place = document.createElement("span");
     place.className = "place";
-    place.textContent = "#" + r.rank[s.k];
+    place.textContent = r.rank[s.k] === null ? "" : "#" + r.rank[s.k];
 
     line.appendChild(name);
     line.appendChild(now);
@@ -737,9 +847,11 @@
 
     var growth = document.createElement("p");
     growth.className = "growth";
+    // Always the full base + growth breakdown, whatever the columns are
+    // showing — this line is the one place both numbers appear together.
     var parts = STATS.filter(function (s) { return s.growth >= 0; }).map(function (s) {
       var g = r.raw[s.growth];
-      return s.short + " " + fmt(r.raw[s.base], s.dp) + " + " + g + (s.pct ? "%" : "") + "/lvl";
+      return s.short + " " + r.raw[s.base].toFixed(s.dp) + " + " + g + (s.pct ? "%" : "") + "/lvl";
     });
     growth.innerHTML = "<b>Base + growth</b> &nbsp; " + parts.join("&nbsp; &middot; &nbsp;") +
       "&nbsp; &middot; &nbsp; MS " + r.raw[13] + " (flat)";
@@ -792,8 +904,9 @@
         var td = document.createElement("td");
         var cell = document.createElement("div");
         cell.className = "cell";
-        cell.textContent = fmt(r.v[s.k], s.dp);
-        cell.appendChild(meterTrack(r.norm[s.k]));
+        cell.textContent = fmt(r.v[s.k], s);
+        if (r.norm[s.k] !== null) cell.appendChild(meterTrack(r.norm[s.k]));
+        else cell.style.color = "var(--faint)";
         td.appendChild(cell);
         tr.appendChild(td);
       });
@@ -819,11 +932,37 @@
       if (openName === r.name) el.body.appendChild(detailRow(r, colspan));
     });
 
-    var what = sortKey === "bst" ? "base stat total" : byKey[sortKey].label;
-    el.note.textContent = rows.length + " shown — ranked by " + what + " at level " + level;
+    var what = sortKey === "bst"
+      ? (mode === "growth" ? "growth composite" : "base stat total")
+      : byKey[sortKey].label + (mode === "growth" ? " growth" : "");
+    var view = mode === "level" ? "at level " + level : byMode[mode].note;
+    el.note.textContent = rows.length + " shown — ranked by " + what + ", " + view;
     el.shown.textContent = rows.length + " / " + D.length;
     el.leaderKey.textContent = "Top by " + (sortKey === "bst" ? "total" : byKey[sortKey].short);
     el.leader.textContent = rows.length ? rows[0].name : "—";
+  }
+
+  function buildModes() {
+    el.modes.innerHTML = "";
+    MODES.forEach(function (x) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = x.label;
+      b.setAttribute("aria-pressed", mode === x.k ? "true" : "false");
+      b.addEventListener("click", function () {
+        if (mode === x.k) return;
+        mode = x.k;
+        openName = null;
+        // The slider only means anything when the columns are level-scaled.
+        el.level.disabled = mode !== "level";
+        el.levelControl.className = "level-control" + (mode === "level" ? "" : " inert");
+        buildModes();
+        buildHead();
+        rescore();
+        render();
+      });
+      el.modes.appendChild(b);
+    });
   }
 
   el.level.addEventListener("input", function () {
@@ -863,6 +1002,7 @@
     note.hidden = false;
   }
 
+  buildModes();
   buildHead();
   rescore();
   render();
